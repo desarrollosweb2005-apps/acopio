@@ -1,0 +1,31 @@
+import { createClient } from '@/lib/supabase/server';
+import type { Collection } from '@/lib/types';
+import { extractUrl, normalizeUrl } from '@/lib/url';
+import { QuickSave } from './QuickSave';
+
+export const metadata = { title: 'Guardar en Acopio' };
+export const dynamic = 'force-dynamic';
+
+/**
+ * Destino del bookmarklet (?url=&title=) y del menú Compartir del móvil
+ * (Android manda a veces la URL dentro de `text`).
+ */
+export default async function SavePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const p = await searchParams;
+  const url = extractUrl(p.url, p.text, p.title);
+  const supabase = await createClient();
+  const { data: collections } = await supabase.from('collections').select('id,parent_id,name,icon,position').order('position').order('name');
+  const existing = url
+    ? (await supabase.from('bookmarks').select('id,title,created_at,collection_id').eq('url_norm', normalizeUrl(url)).limit(1)).data?.[0] ?? null
+    : null;
+  const sharedText = p.text && p.text !== url ? p.text.replace(url ?? '', '').trim() : '';
+
+  return (
+    <main className="page">
+      <div className="page-inner">
+        <span className="logo"><i aria-hidden="true" />Acopio</span>
+        <QuickSave url={url} titleHint={p.title ?? ''} sharedText={sharedText} collections={(collections ?? []) as Collection[]} existing={existing} />
+      </div>
+    </main>
+  );
+}
