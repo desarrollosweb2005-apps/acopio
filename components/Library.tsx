@@ -32,12 +32,10 @@ export function Library({ initialCollections, initialBookmarks }: { initialColle
   const [toastMsg, setToastMsg] = useState('');
 
   useEffect(() => {
-    document.body.classList.add('app-body');
     try {
       const saved = localStorage.getItem(LAYOUT_KEY);
       if (saved) setLayouts(JSON.parse(saved));
     } catch {}
-    return () => document.body.classList.remove('app-body');
   }, []);
 
   const toast = useCallback((msg: string) => {
@@ -161,7 +159,7 @@ export function Library({ initialCollections, initialBookmarks }: { initialColle
     setView(v);
     setSelId(null);
     setMenuOpen(false);
-    document.querySelector('.scroll')?.scrollTo(0, 0);
+    window.scrollTo(0, 0);
   }
   function setLayout(l: Layout) {
     const next = { ...layouts, [view]: l };
