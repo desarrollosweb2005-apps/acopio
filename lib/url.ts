@@ -1,6 +1,6 @@
 import type { Source } from './types';
 
-const TRACKING = /^(utm_\w+|si|s|ref|ref_src|fbclid|gclid|igshid|feature)$/i;
+const TRACKING = /^(utm_\w+|_bhlid|si|s|ref|ref_src|fbclid|gclid|igshid|feature|mc_cid|mc_eid)$/i;
 
 export function normalizeUrl(raw: string): string {
   try {

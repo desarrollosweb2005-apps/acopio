@@ -4,13 +4,11 @@ import { useMemo, useState } from 'react';
 import Papa from 'papaparse';
 import { createClient } from '@/lib/supabase/client';
 import { STATUS_LABEL, type Collection, type Status } from '@/lib/types';
-import { cleanTag, plural } from '@/lib/format';
-import { domainOf, normalizeUrl, sourceOf } from '@/lib/url';
+import { plural } from '@/lib/format';
+import { normalizeUrl } from '@/lib/url';
+import { rowToBookmark, splitHighlights, splitTags, type RaindropRow } from '@/lib/raindrop';
 
-interface Row {
-  title?: string; note?: string; excerpt?: string; url?: string; folder?: string; tags?: string;
-  created?: string; cover?: string; highlights?: string; favorite?: string;
-}
+type Row = RaindropRow;
 interface Parsed { rows: Row[]; folders: string[]; dupes: number; tags: number }
 
 const UNSORTED = /^(unsorted|sin clasificar|sin ordenar)$/i;
@@ -84,20 +82,9 @@ export function Importer() {
     let done = 0, highlights = 0;
     for (let i = 0; i < parsed.rows.length; i += 100) {
       const batch = parsed.rows.slice(i, i + 100);
-      const payload = batch.map((r) => {
-        const url = r.url!.trim();
-        const tags = splitTags(r.tags);
-        if (/^true$/i.test(r.favorite ?? '')) tags.push('destacado');
-        const created = r.created && !isNaN(Date.parse(r.created)) ? new Date(r.created).toISOString() : undefined;
-        return {
-          kind: 'link', status, url, url_norm: normalizeUrl(url), domain: domainOf(url), source: sourceOf(url),
-          title: r.title?.trim() || domainOf(url), note: r.note?.trim() ?? '', excerpt: r.excerpt?.trim() ?? '',
-          cover_url: r.cover?.trim() || null, tags: [...new Set(tags)],
-          collection_id: r.folder ? folderId.get(r.folder.trim()) ?? null : null,
-          meta: { imported_from: 'raindrop' },
-          ...(created ? { created_at: created } : {}),
-        };
-      });
+      const payload = batch.map((r) =>
+        rowToBookmark(r, { status, collection_id: r.folder ? folderId.get(r.folder.trim()) ?? null : null }),
+      );
       const { data, error } = await supabase.from('bookmarks').insert(payload).select('id');
       if (error) {
         setError(`Se detuvo después de ${done} marcadores: ${error.message}`);
@@ -152,17 +139,4 @@ export function Importer() {
       )}
     </section>
   );
-}
-
-function splitTags(s?: string) {
-  return (s ?? '').split(',').map(cleanTag).filter(Boolean);
-}
-
-/** Raindrop exporta los highlights como texto; cada bloque separado por línea en blanco es uno. */
-function splitHighlights(s?: string) {
-  if (!s?.trim()) return [];
-  return s.split(/\n\s*\n/).map((block) => {
-    const [text, ...noteParts] = block.replace(/^\s*highlight:\s*/i, '').split(/\n\s*note:\s*/i);
-    return { text: text.trim(), note: noteParts.join(' ').trim(), color: 'y' };
-  }).filter((h) => h.text);
 }
