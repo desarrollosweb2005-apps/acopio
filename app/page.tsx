@@ -14,6 +14,7 @@ export default async function Home() {
     <Library
       initialCollections={(collections ?? []) as Collection[]}
       initialBookmarks={(bookmarks ?? []) as unknown as Bookmark[]}
+      aiEnabled={!!process.env.GROQ_API_KEY}
     />
   );
 }

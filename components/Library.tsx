@@ -10,13 +10,16 @@ import { Thumb, SourceIcon } from './Thumb';
 import { Detail } from './Detail';
 import { AddDialog } from './AddDialog';
 import { CollectionDialog } from './CollectionDialog';
+import { OrganizeDialog } from './OrganizeDialog';
+import { AskPanel } from './AskPanel';
+import { extractUrl } from '@/lib/url';
 
 type Layout = 'cards' | 'list' | 'compact';
 type Sort = 'new' | 'old' | 'title' | 'short';
 const NEXT_STATUS: Record<Status, Status> = { pending: 'seen', seen: 'applied', applied: 'pending' };
 const LAYOUT_KEY = 'acopio-layouts';
 
-export function Library({ initialCollections, initialBookmarks }: { initialCollections: Collection[]; initialBookmarks: Bookmark[] }) {
+export function Library({ initialCollections, initialBookmarks, aiEnabled }: { initialCollections: Collection[]; initialBookmarks: Bookmark[]; aiEnabled: boolean }) {
   const supabase = useMemo(() => createClient(), []);
   const [collections, setCollections] = useState(initialCollections);
   const [bookmarks, setBookmarks] = useState(initialBookmarks);
@@ -27,6 +30,9 @@ export function Library({ initialCollections, initialBookmarks }: { initialColle
   const [selId, setSelId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [adding, setAdding] = useState<null | 'link' | 'prompt'>(null);
+  const [addUrl, setAddUrl] = useState<string | undefined>(undefined);
+  const [organizing, setOrganizing] = useState(false);
+  const [dropping, setDropping] = useState(false);
   const [editingCol, setEditingCol] = useState<null | { id?: string }>(null);
   const [layouts, setLayouts] = useState<Record<string, Layout>>({ 'f:video': 'cards' });
   const [toastMsg, setToastMsg] = useState('');
@@ -175,6 +181,39 @@ export function Library({ initialCollections, initialBookmarks }: { initialColle
     return () => document.removeEventListener('keydown', onKey);
   }, [adding, editingCol]);
 
+  // Pegar (Ctrl+V) o arrastrar un link sobre la app abre «Añadir» con el link ya leído
+  useEffect(() => {
+    const busy = () => adding || editingCol || organizing;
+    const open = (url: string) => { setAddUrl(url); setAdding('link'); setMenuOpen(false); };
+    const linkFrom = (dt: DataTransfer | null) =>
+      extractUrl(dt?.getData('text/uri-list').split('\n').find((l) => l && !l.startsWith('#')), dt?.getData('text/plain'));
+    const onPaste = (e: ClipboardEvent) => {
+      if (busy() || (e.target as HTMLElement).closest?.('input, textarea, [contenteditable]')) return;
+      const url = linkFrom(e.clipboardData);
+      if (url) { e.preventDefault(); open(url); }
+    };
+    const hasLink = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].some((t) => t === 'text/uri-list' || t === 'text/plain');
+    const onOver = (e: DragEvent) => { if (busy() || !hasLink(e)) return; e.preventDefault(); setDropping(true); };
+    const onLeave = (e: DragEvent) => { if (!e.relatedTarget) setDropping(false); };
+    const onDrop = (e: DragEvent) => {
+      setDropping(false);
+      if (busy() || !hasLink(e)) return;
+      e.preventDefault();
+      const url = linkFrom(e.dataTransfer);
+      if (url) open(url); else toast('Eso no es un link');
+    };
+    document.addEventListener('paste', onPaste);
+    document.addEventListener('dragover', onOver);
+    document.addEventListener('dragleave', onLeave);
+    document.addEventListener('drop', onDrop);
+    return () => {
+      document.removeEventListener('paste', onPaste);
+      document.removeEventListener('dragover', onOver);
+      document.removeEventListener('dragleave', onLeave);
+      document.removeEventListener('drop', onDrop);
+    };
+  }, [adding, editingCol, organizing, toast]);
+
   /* ---------- Vista ---------- */
   const [title, sub] = viewTitle(view, colById, colPath);
   const queueTotal = view === 'queue' ? list.reduce((a, b) => a + (b.duration_seconds ?? 0), 0) : 0;
@@ -200,6 +239,7 @@ export function Library({ initialCollections, initialBookmarks }: { initialColle
           <Nav v="inbox" ic="📥" label="Bandeja" n={count('inbox')} cls={count('inbox') ? 'alert' : ''} />
           <Nav v="queue" ic="⏱" label="Cola pendiente" n={count('queue')} />
           <Nav v="prompts" ic="💬" label="Prompts" n={count('prompts')} />
+          <Nav v="ask" ic="✦" label="Preguntar" />
         </div>
         <div className="grp">
           <div className="grp-head"><h4>Filtros</h4></div>
@@ -255,12 +295,11 @@ export function Library({ initialCollections, initialBookmarks }: { initialColle
             <div>
               <h1>{title}</h1>
               <div className="sub">
-                {plural(list.length, 'marcador', 'marcadores')}
-                {queueTotal ? ` · ${formatDuration(queueTotal)} en total` : ''} · {sub}
+                {view !== 'ask' && <>{plural(list.length, 'marcador', 'marcadores')}{queueTotal ? ` · ${formatDuration(queueTotal)} en total` : ''} · </>}{sub}
                 {curCol && <> · <button className="link-btn" onClick={() => setEditingCol({ id: curCol })}>Editar colección</button></>}
               </div>
             </div>
-            <div className="tools">
+            {view !== 'ask' && <div className="tools">
               {view === 'queue' && (
                 <div className="seg" role="group" aria-label="Tiempo disponible">
                   {[[0, 'Todo'], [15, '≤ 15 min'], [30, '≤ 30 min'], [60, '≤ 1 h']].map(([m, l]) => (
@@ -281,14 +320,25 @@ export function Library({ initialCollections, initialBookmarks }: { initialColle
                   </button>
                 ))}
               </div>
-            </div>
+            </div>}
           </div>
+
+          {view === 'inbox' && list.length > 0 && (
+            <div className="banner">
+              <span>La IA puede proponer una colección y etiquetas para cada marcador de la Bandeja. Revisas la propuesta antes de aplicar nada.</span>
+              {aiEnabled
+                ? <button className="primary" onClick={() => setOrganizing(true)}>✦ Organizar con IA</button>
+                : <span>Añade <code>GROQ_API_KEY</code> en Vercel para activarlo.</span>}
+            </div>
+          )}
 
           {view === 'queue' && minutes > 0 && (
             <div className="banner">Solo se muestran los que tienen duración conocida. Los posts y algunas webs no la tienen.</div>
           )}
 
-          {list.length ? (
+          {view === 'ask' ? (
+            <AskPanel bookmarks={bookmarks} aiEnabled={aiEnabled} onOpen={(id) => setSelId(id)} />
+          ) : list.length ? (
             <div className={`items ${layout}`}>
               {list.map((b) => (
                 <Item key={b.id} b={b} layout={layout} selected={b.id === selId} colLabel={`${colIcon(b.collection_id)} ${colPath(b.collection_id)}`}
@@ -310,6 +360,8 @@ export function Library({ initialCollections, initialBookmarks }: { initialColle
             b={selected}
             collections={collections}
             allTags={tagCounts}
+            aiEnabled={aiEnabled}
+            onPatched={(patch) => setBookmarks((bs) => bs.map((x) => (x.id === selected.id ? { ...x, ...patch } : x)))}
             colPath={colPath}
             supabase={supabase}
             toast={toast}
@@ -324,16 +376,18 @@ export function Library({ initialCollections, initialBookmarks }: { initialColle
       {adding && (
         <AddDialog
           mode={adding}
+          initialUrl={addUrl}
+          aiEnabled={aiEnabled}
           collections={collections}
           colPath={colPath}
           bookmarks={bookmarks}
           allTags={tagCounts}
           defaultCollection={curCol}
-          onClose={() => setAdding(null)}
-          onOpenExisting={(id) => { setAdding(null); setSelId(id); }}
+          onClose={() => { setAdding(null); setAddUrl(undefined); }}
+          onOpenExisting={(id) => { setAdding(null); setAddUrl(undefined); setSelId(id); }}
           onInsert={async (row) => {
             const b = await insertBookmark(row);
-            if (b) { setAdding(null); setSelId(b.id); toast(`Guardado en ${colPath(b.collection_id)}`); }
+            if (b) { setAdding(null); setAddUrl(undefined); setSelId(b.id); toast(`Guardado en ${colPath(b.collection_id)}`); }
           }}
         />
       )}
@@ -347,6 +401,23 @@ export function Library({ initialCollections, initialBookmarks }: { initialColle
           onDelete={deleteCollection}
         />
       )}
+      {organizing && (
+        <OrganizeDialog
+          items={bookmarks.filter((b) => !b.collection_id)}
+          collections={collections}
+          colPath={colPath}
+          supabase={supabase}
+          onClose={() => setOrganizing(false)}
+          onDone={({ created, updates }) => {
+            setCollections((cs) => [...cs, ...created]);
+            const byId = new Map(updates.map((u) => [u.id, u]));
+            setBookmarks((bs) => bs.map((b) => (byId.has(b.id) ? { ...b, ...byId.get(b.id)! } : b)));
+            setOrganizing(false);
+            toast(`${plural(updates.length, 'marcador organizado', 'marcadores organizados')}${created.length ? ` en ${plural(created.length, 'colección nueva', 'colecciones nuevas')}` : ''}`);
+          }}
+        />
+      )}
+      {dropping && <div className="drop-hint">Suelta el link para guardarlo</div>}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>
   );
@@ -400,6 +471,7 @@ function viewTitle(v: string, colById: Map<string, Collection>, colPath: (id: st
     inbox: ['Bandeja', 'Sin colección todavía'],
     queue: ['Cola pendiente', 'Lo que guardaste y aún no has visto'],
     prompts: ['Prompts', 'Tu librería de prompts reutilizables'],
+    ask: ['Preguntar a tu biblioteca', 'Responde con IA citando tus marcadores'],
     'f:notes': ['Con notas', 'Marcadores en los que escribiste algo'],
     'f:hl': ['Highlights', 'Marcadores con fragmentos guardados'],
     'f:video': ['Vídeos', 'YouTube'],

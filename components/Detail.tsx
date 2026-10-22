@@ -12,7 +12,7 @@ import { TagInput } from './TagInput';
 
 const COLORS: [HlColor, string][] = [['y', 'Amarillo'], ['g', 'Verde'], ['b', 'Azul'], ['p', 'Rosa']];
 
-export function Detail({ b, collections, allTags, colPath, supabase, toast, onClose, onUpdate, onDelete, onAddHighlight, onRemoveHighlight }: {
+export function Detail({ b, collections, allTags, aiEnabled, onPatched, colPath, supabase, toast, onClose, onUpdate, onDelete, onAddHighlight, onRemoveHighlight }: {
   b: Bookmark;
   collections: Collection[];
   allTags: [string, number][];
@@ -24,6 +24,9 @@ export function Detail({ b, collections, allTags, colPath, supabase, toast, onCl
   onDelete: () => void;
   onAddHighlight: (h: Pick<Highlight, 'text' | 'note' | 'color' | 'time_label'>) => void;
   onRemoveHighlight: (id: string) => void;
+  aiEnabled: boolean;
+  /** Cambios ya guardados en el servidor (por la IA): solo actualizan la vista */
+  onPatched: (patch: Partial<Bookmark>) => void;
 }) {
   const [title, setTitle] = useState(b.title);
   const [note, setNote] = useState(b.note);
@@ -35,6 +38,24 @@ export function Detail({ b, collections, allTags, colPath, supabase, toast, onCl
   const [vars, setVars] = useState<Record<string, string>>({});
 
   const isPrompt = b.kind === 'prompt';
+  const [aiBusy, setAiBusy] = useState<'' | 'summary' | 'prompt'>('');
+  const summary = ((b.meta ?? {}) as { summary?: string[] }).summary ?? [];
+
+  async function ai(kind: 'summary' | 'prompt') {
+    setAiBusy(kind);
+    const res = await fetch(`/api/ai/${kind}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: b.id }) });
+    const data = await res.json().catch(() => ({ error: 'Respuesta no válida' }));
+    setAiBusy('');
+    if (!res.ok) return toast(data.error ?? 'La IA no respondió');
+    if (kind === 'summary') {
+      onPatched({ meta: data.meta });
+    } else {
+      onPatched(data);
+      setPrompt(data.prompt_text);
+      setTitle(data.title);
+      toast('Convertido en prompt. Lo tienes en la sección Prompts');
+    }
+  }
   const variables = promptVariables(prompt);
   const meta = b.meta ?? {};
 
@@ -168,6 +189,26 @@ export function Detail({ b, collections, allTags, colPath, supabase, toast, onCl
         <textarea id="d-note" rows={3} placeholder="Por qué lo guardaste" value={note}
           onChange={(e) => setNote(e.target.value)} onBlur={() => note !== b.note && onUpdate({ note })} />
       </label>
+
+      {!isPrompt && (
+        <section className="d-sec">
+          <h3>Resumen IA</h3>
+        </section>
+      )}
+      {!isPrompt && (
+        <section className="d-sec ai-box" style={{ marginTop: -8 }}>
+          {summary.length ? <ul>{summary.map((p, i) => <li key={i}>{p}</li>)}</ul> : <p className="mono">Sin resumen todavía.</p>}
+          <div className="row">
+            <button className="ghost" onClick={() => ai('summary')} disabled={!aiEnabled || !!aiBusy}>
+              {aiBusy === 'summary' ? 'Resumiendo…' : summary.length ? 'Volver a resumir' : '✦ Resumir con IA'}
+            </button>
+            <button className="ghost" onClick={() => ai('prompt')} disabled={!aiEnabled || !!aiBusy} title="Extrae el prompt del contenido y lo deja listo con {{variables}}">
+              {aiBusy === 'prompt' ? 'Extrayendo…' : '✦ Convertir en prompt'}
+            </button>
+          </div>
+          {!aiEnabled && <p className="mono">Añade GROQ_API_KEY en Vercel para usar la IA.</p>}
+        </section>
+      )}
 
       {!isPrompt && (
         <section className="d-sec">

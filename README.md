@@ -30,6 +30,7 @@ Biblioteca personal de links, prompts y highlights. Hecha con Next.js + Supabase
    - `NEXT_PUBLIC_SUPABASE_URL` → la Project URL
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` → la clave publishable (o `NEXT_PUBLIC_SUPABASE_ANON_KEY` con la clave anon, en proyectos antiguos)
    - `ALLOWED_EMAIL` → tu email (solo esa cuenta puede entrar)
+   - `GROQ_API_KEY` → opcional; activa la IA (organizar la Bandeja, resúmenes, prompts y preguntar). Se consigue gratis en [console.groq.com](https://console.groq.com)
    - `YOUTUBE_API_KEY` → opcional; si los vídeos se guardan sin duración ni descripción, ver «Clave de YouTube» abajo
 3. **Deploy**. Abre la URL que te da Vercel y entra con tu email y contraseña.
 
@@ -62,9 +63,17 @@ npm run dev                  # http://localhost:3000
 | `lib/snapshot.ts` | Lectores para YouTube, X, GitHub y webs normales |
 | `supabase/migrations` | Esquema de la base de datos con seguridad por usuario (RLS) |
 
+## IA con Groq (fase 2)
+
+- **Organizar con IA** (en la Bandeja): propone colección y etiquetas para cada marcador, creando colecciones nuevas si hace falta. Revisas la propuesta antes de aplicar.
+- **Al añadir un link**: sugiere colección y etiquetas.
+- **Resumir con IA** y **Convertir en prompt** en la ficha de cada marcador.
+- **Preguntar**: responde preguntas sobre la biblioteca citando los marcadores.
+
+También se puede **arrastrar un link** a la ventana o **pegarlo con Ctrl+V** en cualquier parte para guardarlo.
+
 ## Próximas fases
 
-2. IA (Groq): clasificación, etiquetas y resúmenes automáticos; preguntar a la biblioteca.
 3. Capturas: pegar o subir imágenes, recortarlas y guardarlas en una galería.
 4. Extensión de Chrome: recorte de zonas de la web y «Guardar texto» con clic derecho.
 5. Mantenimiento: duplicados, etiquetas parecidas y links rotos.

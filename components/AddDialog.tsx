@@ -9,8 +9,10 @@ import { snapshotToRow } from '@/lib/rows';
 import { CollectionOptions } from './CollectionOptions';
 import { TagInput } from './TagInput';
 
-export function AddDialog({ mode: initialMode, collections, colPath, bookmarks, allTags, defaultCollection, onClose, onOpenExisting, onInsert }: {
+export function AddDialog({ mode: initialMode, initialUrl, aiEnabled, collections, colPath, bookmarks, allTags, defaultCollection, onClose, onOpenExisting, onInsert }: {
   mode: 'link' | 'prompt';
+  initialUrl?: string;
+  aiEnabled: boolean;
   allTags: [string, number][];
   collections: Collection[];
   colPath: (id: string | null) => string;
@@ -21,7 +23,8 @@ export function AddDialog({ mode: initialMode, collections, colPath, bookmarks, 
   onInsert: (row: Record<string, unknown>) => Promise<void>;
 }) {
   const [mode, setMode] = useState(initialMode);
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(initialUrl ?? '');
+  const [aiSug, setAiSug] = useState<{ collection_id: string | null; tags: string[] } | null>(null);
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [title, setTitle] = useState('');
   const [collectionId, setCollectionId] = useState(defaultCollection ?? '');
@@ -33,6 +36,8 @@ export function AddDialog({ mode: initialMode, collections, colPath, bookmarks, 
   const firstInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => { firstInput.current?.focus(); }, [mode]);
+  // Link arrastrado o pegado: se lee al abrir
+  useEffect(() => { if (initialUrl) analyze(initialUrl); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     document.addEventListener('keydown', onKey);
@@ -41,16 +46,23 @@ export function AddDialog({ mode: initialMode, collections, colPath, bookmarks, 
 
   const dupe = url.trim() ? bookmarks.find((b) => b.url_norm && b.url_norm === normalizeUrl(url)) : undefined;
 
-  async function analyze() {
+  async function analyze(target = url) {
     setBusy(true);
     setError('');
-    const res = await fetch('/api/snapshot', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: url.trim() }) });
+    setAiSug(null);
+    const res = await fetch('/api/snapshot', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ url: target.trim() }) });
     const s = (await res.json()) as Snapshot & { error?: string };
     setBusy(false);
     if (!res.ok) return setError(s.error ?? 'No se pudo leer el link');
     setSnap(s);
     setTitle(s.title);
     if (s.error) setError(`No se pudo leer todo el contenido (${s.error}). Puedes guardarlo igual.`);
+    if (aiEnabled) {
+      fetch('/api/ai/suggest', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: s.title, excerpt: s.excerpt, domain: s.domain, url: s.url }) })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((sug) => sug && (sug.collection_id || sug.tags?.length) && setAiSug(sug))
+        .catch(() => {});
+    }
   }
 
   async function submit(e: React.FormEvent) {
@@ -127,6 +139,18 @@ export function AddDialog({ mode: initialMode, collections, colPath, bookmarks, 
           </>
         )}
 
+        {mode === 'link' && aiSug && (
+          <div className="sug">
+            <span className="lbl">IA sugiere</span>
+            {aiSug.collection_id && <span>{colPath(aiSug.collection_id)}</span>}
+            <span className="tags">{aiSug.tags.map((t) => <span key={t} className="tag">#{t}</span>)}</span>
+            <button type="button" className="primary" onClick={() => {
+              if (aiSug.collection_id) setCollectionId(aiSug.collection_id);
+              setTagList((cur) => [...new Set([...cur, ...aiSug.tags])]);
+              setAiSug(null);
+            }}>Aplicar</button>
+          </div>
+        )}
         {(mode === 'prompt' || (snap && snap.url === url.trim())) && (
           <div className="form-grid">
             <label className="field"><span>Colección</span>

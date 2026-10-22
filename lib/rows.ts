@@ -28,6 +28,7 @@ export function snapshotToRow(
 export function bookmarkHaystack(b: Bookmark, collectionName: string) {
   return [
     b.title, b.note, b.excerpt, b.domain, b.prompt_text, b.tags.join(' '), collectionName,
+    ...(((b.meta ?? {}) as { summary?: string[] }).summary ?? []),
     ...b.highlights.map((h) => `${h.text} ${h.note}`),
   ].join(' ');
 }
