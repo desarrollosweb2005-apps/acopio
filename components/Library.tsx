@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { BOOKMARK_COLUMNS, STATUS_LABEL, type Bookmark, type Collection, type Highlight, type Status } from '@/lib/types';
 import { fmtDate, fold, plural } from '@/lib/format';
@@ -14,6 +14,10 @@ import { OrganizeDialog } from './OrganizeDialog';
 import { AskPanel } from './AskPanel';
 import { BrokenPanel, DupesPanel, TagsPanel, duplicateGroups } from './Maintenance';
 import { similarTagGroups } from '@/lib/tags';
+import { UploadDialog, type UploadInput } from './UploadDialog';
+import { FilesGallery } from './FilesGallery';
+import { BUCKET, isImage } from '@/lib/files';
+import { fileMeta } from '@/lib/types';
 import { extractUrl } from '@/lib/url';
 
 type Layout = 'cards' | 'list' | 'compact';
@@ -35,6 +39,9 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
   const [addUrl, setAddUrl] = useState<string | undefined>(undefined);
   const [organizing, setOrganizing] = useState(false);
   const [dropping, setDropping] = useState(false);
+  const [uploading, setUploading] = useState<UploadInput | null>(null);
+  // Enlaces firmados (caducan) para ver las imágenes privadas del almacenamiento
+  const [fileUrls, setFileUrls] = useState<Record<string, string>>({});
   const [editingCol, setEditingCol] = useState<null | { id?: string }>(null);
   const [layouts, setLayouts] = useState<Record<string, Layout>>({ 'f:video': 'cards' });
   const [toastMsg, setToastMsg] = useState('');
@@ -45,6 +52,16 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
       if (saved) setLayouts(JSON.parse(saved));
     } catch {}
   }, []);
+
+  const requested = useRef(new Set<string>());
+  useEffect(() => {
+    const missing = bookmarks.map(fileMeta).filter((f) => f && isImage(f.type) && !requested.current.has(f.path)).map((f) => f!.path);
+    if (!missing.length) return;
+    missing.forEach((p) => requested.current.add(p));
+    supabase.storage.from(BUCKET).createSignedUrls(missing, 60 * 60 * 12).then(({ data }) => {
+      if (data) setFileUrls((m) => ({ ...m, ...Object.fromEntries(data.filter((d) => d.signedUrl && d.path).map((d) => [d.path as string, d.signedUrl as string])) }));
+    });
+  }, [bookmarks, supabase]);
 
   const toast = useCallback((msg: string) => {
     setToastMsg(msg);
@@ -74,6 +91,7 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
     if (v === 'inbox') return !b.collection_id;
     if (v === 'queue') return b.kind === 'link' && b.status === 'pending';
     if (v === 'prompts') return b.kind === 'prompt';
+    if (v === 'files') return b.kind === 'file';
     if (v === 'f:notes') return !!b.note;
     if (v === 'f:hl') return b.highlights.length > 0;
     if (v === 'f:video') return b.source === 'video';
@@ -115,8 +133,10 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
     }
   }
   async function deleteBookmark(id: string) {
+    const file = fileMeta(bookmarks.find((b) => b.id === id) ?? {});
     const { error } = await supabase.from('bookmarks').delete().eq('id', id);
     if (error) return toast(`No se pudo eliminar: ${error.message}`);
+    if (file) await supabase.storage.from(BUCKET).remove([file.path]);
     setBookmarks((bs) => bs.filter((b) => b.id !== id));
     setSelId(null);
     toast('Marcador eliminado');
@@ -185,22 +205,26 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
 
   // Pegar (Ctrl+V) o arrastrar un link sobre la app abre «Añadir» con el link ya leído
   useEffect(() => {
-    const busy = () => adding || editingCol || organizing;
+    const busy = () => adding || editingCol || organizing || uploading;
     const open = (url: string) => { setAddUrl(url); setAdding('link'); setMenuOpen(false); };
     const linkFrom = (dt: DataTransfer | null) =>
       extractUrl(dt?.getData('text/uri-list').split('\n').find((l) => l && !l.startsWith('#')), dt?.getData('text/plain'));
     const onPaste = (e: ClipboardEvent) => {
       if (busy() || (e.target as HTMLElement).closest?.('input, textarea, [contenteditable]')) return;
+      const file = e.clipboardData?.files[0];
+      if (file) { e.preventDefault(); setUploading({ file }); setMenuOpen(false); return; }
       const url = linkFrom(e.clipboardData);
       if (url) { e.preventDefault(); open(url); }
     };
-    const hasLink = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].some((t) => t === 'text/uri-list' || t === 'text/plain');
+    const hasLink = (e: DragEvent) => !!e.dataTransfer && [...e.dataTransfer.types].some((t) => t === 'text/uri-list' || t === 'text/plain' || t === 'Files');
     const onOver = (e: DragEvent) => { if (busy() || !hasLink(e)) return; e.preventDefault(); setDropping(true); };
     const onLeave = (e: DragEvent) => { if (!e.relatedTarget) setDropping(false); };
     const onDrop = (e: DragEvent) => {
       setDropping(false);
       if (busy() || !hasLink(e)) return;
       e.preventDefault();
+      const file = e.dataTransfer?.files[0];
+      if (file) { setUploading({ file }); return; }
       const url = linkFrom(e.dataTransfer);
       if (url) open(url); else toast('Eso no es un link');
     };
@@ -214,12 +238,12 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
       document.removeEventListener('dragleave', onLeave);
       document.removeEventListener('drop', onDrop);
     };
-  }, [adding, editingCol, organizing, toast]);
+  }, [adding, editingCol, organizing, uploading, toast]);
 
   /* ---------- Vista ---------- */
   const dupes = useMemo(() => duplicateGroups(bookmarks), [bookmarks]);
   const similarTags = useMemo(() => similarTagGroups(tagCounts), [tagCounts]);
-  const special = view === 'ask' || view.startsWith('m:');
+  const special = view === 'ask' || view === 'files' || view.startsWith('m:');
   const [title, sub] = viewTitle(view, colById, colPath);
   const queueTotal = view === 'queue' ? list.reduce((a, b) => a + (b.duration_seconds ?? 0), 0) : 0;
   const curCol = view.startsWith('col:') ? view.slice(4) : null;
@@ -244,6 +268,7 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
           <Nav v="inbox" ic="📥" label="Bandeja" n={count('inbox')} cls={count('inbox') ? 'alert' : ''} />
           <Nav v="queue" ic="⏱" label="Cola pendiente" n={count('queue')} />
           <Nav v="prompts" ic="💬" label="Prompts" n={count('prompts')} />
+          <Nav v="files" ic="▣" label="Capturas y archivos" n={count('files')} />
           <Nav v="ask" ic="✦" label="Preguntar" />
         </div>
         <div className="grp">
@@ -349,6 +374,9 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
 
           {view === 'ask' ? (
             <AskPanel bookmarks={bookmarks} aiEnabled={aiEnabled} onOpen={(id) => setSelId(id)} />
+          ) : view === 'files' ? (
+            <FilesGallery items={list} fileUrls={fileUrls} colPath={colPath} onOpen={(id) => setSelId(id)}
+              onUpload={(file) => setUploading({ file })} />
           ) : view === 'm:dupes' ? (
             <DupesPanel bookmarks={bookmarks} setBookmarks={setBookmarks} supabase={supabase} toast={toast} colPath={colPath} onOpen={(id) => setSelId(id)} />
           ) : view === 'm:tags' ? (
@@ -358,7 +386,7 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
           ) : list.length ? (
             <div className={`items ${layout}`}>
               {list.map((b) => (
-                <Item key={b.id} b={b} layout={layout} selected={b.id === selId} colLabel={`${colIcon(b.collection_id)} ${colPath(b.collection_id)}`}
+                <Item key={b.id} b={b} image={fileUrls[fileMeta(b)?.path ?? '']} layout={layout} selected={b.id === selId} colLabel={`${colIcon(b.collection_id)} ${colPath(b.collection_id)}`}
                   onOpen={() => setSelId(b.id)} onStatus={() => updateBookmark(b.id, { status: NEXT_STATUS[b.status] })} />
               ))}
             </div>
@@ -378,6 +406,7 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
             collections={collections}
             allTags={tagCounts}
             aiEnabled={aiEnabled}
+            image={fileUrls[fileMeta(selected)?.path ?? '']}
             onPatched={(patch) => setBookmarks((bs) => bs.map((x) => (x.id === selected.id ? { ...x, ...patch } : x)))}
             colPath={colPath}
             supabase={supabase}
@@ -434,14 +463,33 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
           }}
         />
       )}
-      {dropping && <div className="drop-hint">Suelta el link para guardarlo</div>}
+      {uploading && (
+        <UploadDialog
+          input={uploading}
+          supabase={supabase}
+          collections={collections}
+          colPath={colPath}
+          allTags={tagCounts}
+          defaultCollection={curCol}
+          onClose={() => setUploading(null)}
+          onInsert={async (row) => {
+            const b = await insertBookmark(row);
+            if (!b) return false;
+            setUploading(null);
+            setSelId(b.id);
+            toast(`Guardado en ${colPath(b.collection_id)}`);
+            return true;
+          }}
+        />
+      )}
+      {dropping && <div className="drop-hint">Suelta aquí el link, la imagen o el archivo</div>}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>
   );
 }
 
-function Item({ b, layout, selected, colLabel, onOpen, onStatus }: {
-  b: Bookmark; layout: Layout; selected: boolean; colLabel: string; onOpen: () => void; onStatus: () => void;
+function Item({ b, image, layout, selected, colLabel, onOpen, onStatus }: {
+  b: Bookmark; image?: string; layout: Layout; selected: boolean; colLabel: string; onOpen: () => void; onStatus: () => void;
 }) {
   const open = (e: React.KeyboardEvent) => { if (e.key === 'Enter' && e.target === e.currentTarget) onOpen(); };
   const statusBtn = b.kind === 'link' && (
@@ -460,7 +508,7 @@ function Item({ b, layout, selected, colLabel, onOpen, onStatus }: {
   }
   return (
     <article className={`it ${selected ? 'sel' : ''}`} onClick={onOpen} onKeyDown={open} tabIndex={0}>
-      <Thumb b={b} />
+      <Thumb b={b} image={image} />
       <div className="body">
         <h3 className="ttl">{b.title}</h3>
         {(b.note || b.excerpt) && <p className="note">{b.note || b.excerpt}</p>}
@@ -488,6 +536,7 @@ function viewTitle(v: string, colById: Map<string, Collection>, colPath: (id: st
     inbox: ['Bandeja', 'Sin colección todavía'],
     queue: ['Cola pendiente', 'Lo que guardaste y aún no has visto'],
     prompts: ['Prompts', 'Tu librería de prompts reutilizables'],
+    files: ['Capturas y archivos', 'Imágenes recortadas, PDFs y documentos'],
     ask: ['Preguntar a tu biblioteca', 'Responde con IA citando tus marcadores'],
     'm:dupes': ['Duplicados', 'El mismo link guardado más de una vez'],
     'm:tags': ['Etiquetas parecidas', 'Unifica etiquetas que significan lo mismo'],

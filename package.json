@@ -8,13 +8,15 @@
     "start": "next start",
     "lint": "tsc --noEmit",
     "icons": "node scripts/make-icons.mjs",
-    "extension": "python3 scripts/pack-extension.py"
+    "extension": "python3 scripts/pack-extension.py",
+    "postinstall": "node -e \"require('fs').copyFileSync('node_modules/pdfjs-dist/build/pdf.worker.min.mjs','public/pdf.worker.min.mjs')\""
   },
   "dependencies": {
     "@supabase/ssr": "0.6.1",
     "@supabase/supabase-js": "^2.75.0",
     "next": "15.5.28",
     "papaparse": "^5.5.3",
+    "pdfjs-dist": "^4.10.38",
     "react": "19.1.1",
     "react-dom": "19.1.1",
     "server-only": "^0.0.1"

@@ -1,18 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { SOURCE_LABEL, STATUS_LABEL, type Bookmark, type Collection, type HlColor, type Highlight, type Snapshot, type Status } from '@/lib/types';
+import { SOURCE_LABEL, STATUS_LABEL, fileMeta, type Bookmark, type Collection, type HlColor, type Highlight, type Snapshot, type Status } from '@/lib/types';
 import { fmtDate } from '@/lib/format';
 import { fillPrompt, promptVariables } from '@/lib/prompt';
 import { formatDuration } from '@/lib/url';
 import { Thumb } from './Thumb';
+import { BUCKET, fmtSize, isImage } from '@/lib/files';
 import { CollectionOptions } from './CollectionOptions';
 import { TagInput } from './TagInput';
 
 const COLORS: [HlColor, string][] = [['y', 'Amarillo'], ['g', 'Verde'], ['b', 'Azul'], ['p', 'Rosa']];
 
-export function Detail({ b, collections, allTags, aiEnabled, onPatched, colPath, supabase, toast, onClose, onUpdate, onDelete, onAddHighlight, onRemoveHighlight }: {
+export function Detail({ b, image, collections, allTags, aiEnabled, onPatched, colPath, supabase, toast, onClose, onUpdate, onDelete, onAddHighlight, onRemoveHighlight }: {
   b: Bookmark;
   collections: Collection[];
   allTags: [string, number][];
@@ -25,6 +26,8 @@ export function Detail({ b, collections, allTags, aiEnabled, onPatched, colPath,
   onAddHighlight: (h: Pick<Highlight, 'text' | 'note' | 'color' | 'time_label'>) => void;
   onRemoveHighlight: (id: string) => void;
   aiEnabled: boolean;
+  /** Enlace firmado de la imagen, en capturas e imágenes subidas */
+  image?: string;
   /** Cambios ya guardados en el servidor (por la IA): solo actualizan la vista */
   onPatched: (patch: Partial<Bookmark>) => void;
 }) {
@@ -38,6 +41,13 @@ export function Detail({ b, collections, allTags, aiEnabled, onPatched, colPath,
   const [vars, setVars] = useState<Record<string, string>>({});
 
   const isPrompt = b.kind === 'prompt';
+  const isFile = b.kind === 'file';
+  const file = fileMeta(b);
+  const [fileUrl, setFileUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!file) return;
+    supabase.storage.from(BUCKET).createSignedUrl(file.path, 60 * 60).then(({ data }) => setFileUrl(data?.signedUrl ?? null));
+  }, [file?.path, supabase]); // eslint-disable-line react-hooks/exhaustive-deps
   const [aiBusy, setAiBusy] = useState<'' | 'summary' | 'prompt'>('');
   const summary = ((b.meta ?? {}) as { summary?: string[] }).summary ?? [];
 
@@ -120,12 +130,23 @@ export function Detail({ b, collections, allTags, aiEnabled, onPatched, colPath,
         <span className="mono">{isPrompt ? 'Prompt' : SOURCE_LABEL[b.source]} · guardado el {fmtDate(b.created_at)}</span>
         <button className="icon-btn" onClick={onClose} aria-label="Cerrar ficha">✕</button>
       </div>
-      {!isPrompt && <Thumb b={b} />}
+      {isFile && file ? (
+        <>
+          {isImage(file.type) && (image || fileUrl)
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img className="detail-img" src={image ?? fileUrl!} alt={b.title} />
+            : <div className={`shot-doc t-${b.source}`} style={{ borderRadius: 10 }}><span>{file.name.split('.').pop()?.toUpperCase()}</span></div>}
+          <div className="row">
+            <span className="mono">{file.name} · {file.width ? `${file.width}×${file.height} px · ` : ''}{fmtSize(file.size)}</span>
+            {fileUrl && <a className="ghost" href={fileUrl} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 'auto' }}>Abrir</a>}
+          </div>
+        </>
+      ) : !isPrompt && <Thumb b={b} />}
       <textarea className="d-title" id="d-title" rows={2} value={title} aria-label="Título" style={{ fieldSizing: 'content' } as React.CSSProperties}
         onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== b.title && onUpdate({ title: title.trim() })} />
       {b.url && <a className="d-url" href={b.url} target="_blank" rel="noopener noreferrer">{b.url}</a>}
 
-      {!isPrompt && (
+      {b.kind === 'link' && (
         <div className="field">
           <span>Estado</span>
           <div className="seg" role="group" aria-label="Estado">
@@ -202,26 +223,26 @@ export function Detail({ b, collections, allTags, aiEnabled, onPatched, colPath,
             <button className="ghost" onClick={() => ai('summary')} disabled={!aiEnabled || !!aiBusy}>
               {aiBusy === 'summary' ? 'Resumiendo…' : summary.length ? 'Volver a resumir' : '✦ Resumir con IA'}
             </button>
-            <button className="ghost" onClick={() => ai('prompt')} disabled={!aiEnabled || !!aiBusy} title="Extrae el prompt del contenido y lo deja listo con {{variables}}">
+            {!isFile && <button className="ghost" onClick={() => ai('prompt')} disabled={!aiEnabled || !!aiBusy} title="Extrae el prompt del contenido y lo deja listo con {{variables}}">
               {aiBusy === 'prompt' ? 'Extrayendo…' : '✦ Convertir en prompt'}
-            </button>
+            </button>}
           </div>
           {!aiEnabled && <p className="mono">Añade GROQ_API_KEY en Vercel para usar la IA.</p>}
         </section>
       )}
 
-      {!isPrompt && (
+      {(b.kind === 'link' || (isFile && b.content_fetched_at)) && (
         <section className="d-sec">
-          <h3>Copia guardada</h3>
+          <h3>{isFile ? 'Texto del documento' : 'Copia guardada'}</h3>
           {b.content_fetched_at ? (
-            <p className="mono">Copiada el {fmtDate(b.content_fetched_at)}. Si el link deja de funcionar, el texto sigue aquí.</p>
+            <p className="mono">{isFile ? 'Texto extraído al subirlo: se usa para buscar y resumir.' : `Copiada el ${fmtDate(b.content_fetched_at)}. Si el link deja de funcionar, el texto sigue aquí.`}</p>
           ) : (
             <p className="mono">Todavía no hay copia del contenido.</p>
           )}
           {content !== undefined && (content ? <div className="copy-box">{content}</div> : <p className="mono">La copia está vacía.</p>)}
           <div className="row">
             {b.content_fetched_at && content === undefined && <button className="ghost" onClick={showCopy} disabled={loadingCopy}>Ver copia</button>}
-            {b.url && <button className="ghost" onClick={refreshCopy} disabled={loadingCopy}>{loadingCopy ? 'Leyendo…' : b.content_fetched_at ? 'Actualizar copia' : 'Guardar copia ahora'}</button>}
+            {b.url && !isFile && <button className="ghost" onClick={refreshCopy} disabled={loadingCopy}>{loadingCopy ? 'Leyendo…' : b.content_fetched_at ? 'Actualizar copia' : 'Guardar copia ahora'}</button>}
           </div>
         </section>
       )}

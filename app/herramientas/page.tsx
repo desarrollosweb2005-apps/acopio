@@ -16,6 +16,7 @@ export default function ToolsPage() {
             <li><b>Clic en el icono</b> o <code>Alt</code>+<code>Shift</code>+<code>S</code>: guarda la página que estás viendo.</li>
             <li><b>Clic derecho sobre cualquier link</b> → «Guardar link en Acopio», sin abrirlo. Útil en la portada de YouTube o en X.</li>
             <li><b>Selecciona texto</b> → clic derecho → «Guardar texto seleccionado»: se guarda como highlight de esa página.</li>
+            <li><b>Clic derecho → «Capturar zona de la página»</b> o <code>Alt</code>+<code>Shift</code>+<code>C</code>: haces una foto de lo que ves, recortas la zona con el recuadro y se guarda en Capturas y archivos.</li>
           </ul>
           <a className="primary" href="/acopio-extension.zip" download style={{ alignSelf: 'flex-start' }}>Descargar la extensión</a>
           <ol>
@@ -25,6 +26,7 @@ export default function ToolsPage() {
             <li>Pulsa <b>Cargar descomprimida</b> y elige la carpeta <code>acopio-extension</code>.</li>
             <li>Fija el icono: pieza de puzle 🧩 de la barra → chincheta junto a <b>Acopio</b>.</li>
           </ol>
+          <p className="mono">¿Ya la tenías instalada? Descarga la nueva versión, reemplaza la carpeta y pulsa ↻ (Recargar) en su tarjeta de <code>brave://extensions</code>. Te pedirá permiso para «leer y cambiar datos en vercel.app»: es para entregar la captura a tu Acopio.</p>
           <p className="mono">La extensión usa tu sesión del navegador: si ya entraste en Acopio, no pide nada más. Viene configurada para acopio-murex.vercel.app; si usas otra dirección, cámbiala en sus Opciones.</p>
         </section>
 

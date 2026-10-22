@@ -1,6 +1,6 @@
-export type Source = 'video' | 'x' | 'repo' | 'web' | 'note';
+export type Source = 'video' | 'x' | 'repo' | 'web' | 'note' | 'image' | 'pdf' | 'file';
 export type Status = 'pending' | 'seen' | 'applied';
-export type Kind = 'link' | 'prompt';
+export type Kind = 'link' | 'prompt' | 'file';
 export type HlColor = 'y' | 'g' | 'b' | 'p';
 
 export interface Collection {
@@ -74,4 +74,11 @@ export const SOURCE_LABEL: Record<Source, string> = {
   repo: 'GitHub',
   web: 'Web',
   note: 'Prompt',
+  image: 'Imagen',
+  pdf: 'PDF',
+  file: 'Archivo',
 };
+
+/** Datos del archivo subido (marcadores de tipo «file»), guardados en meta.file */
+export interface FileMeta { path: string; type: string; size: number; name: string; width?: number; height?: number }
+export const fileMeta = (b: { meta?: Record<string, unknown> | null }) => (b.meta?.file as FileMeta | undefined) ?? null;

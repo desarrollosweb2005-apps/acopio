@@ -4,15 +4,16 @@ import { useState } from 'react';
 import { SOURCE_LABEL, type Bookmark } from '@/lib/types';
 import { formatDuration } from '@/lib/url';
 
-export function Thumb({ b }: { b: Bookmark }) {
+/** `image` sustituye a la portada (capturas e imágenes subidas, con su enlace firmado). */
+export function Thumb({ b, image }: { b: Bookmark; image?: string }) {
   const [broken, setBroken] = useState(false);
   const words = b.title.replace(/^\(\d+\)\s*/, '').split(/\s+/).slice(0, 6).join(' ');
   const src = b.kind === 'prompt' ? 'note' : b.source;
   return (
     <div className={`thumb t-${src}`} aria-hidden="true">
-      {b.cover_url && !broken ? (
+      {(image ?? b.cover_url) && !broken ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={b.cover_url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
+        <img src={image ?? b.cover_url!} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} />
       ) : (
         <>
           <span className="thumb-src">{src === 'web' ? b.domain : SOURCE_LABEL[src]}</span>

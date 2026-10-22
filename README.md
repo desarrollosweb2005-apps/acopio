@@ -88,6 +88,11 @@ En la barra lateral, sección **Mantenimiento**:
 - **Etiquetas parecidas**: une etiquetas equivalentes (`ai`/`ia`, `music`/`musica`, plurales…). Con IA busca más casos. También se puede renombrar cualquier etiqueta.
 - **Links rotos**: comprueba todos los links; marca como roto solo lo seguro (404, dominio inexistente, vídeo o post borrado).
 
-## Próximas fases
+## Capturas y archivos (fase 4)
 
-4. Capturas y archivos: pegar o subir imágenes y recortarlas, subir PDFs; recorte de zonas de la web desde la extensión.
+**Antes de usarlo**, ejecuta `supabase/migrations/0002_files.sql` en el SQL Editor de Supabase (crea el almacenamiento privado y el tipo «archivo»).
+
+- **Pegar una imagen** (`Ctrl+V`) o **arrastrar** una imagen, un PDF o cualquier archivo a la ventana. Las imágenes se recortan con un recuadro ajustable antes de guardar.
+- **Extensión**: clic derecho → «Capturar zona de la página» (o `Alt+Shift+C`).
+- Los PDFs guardan su texto para buscarlos y resumirlos con IA.
+- Los archivos se guardan en Supabase Storage (privado, máx. 50 MB por archivo; 1 GB gratis en total).
