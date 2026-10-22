@@ -56,10 +56,15 @@ export function Detail({ b, collections, allTags, colPath, supabase, toast, onCl
       toast(s.error ? `No se pudo leer: ${s.error}` : 'La página no tiene texto que copiar');
       return;
     }
-    const patch = { content: s.content, content_fetched_at: new Date().toISOString(), is_broken: false, duration_seconds: s.duration_seconds ?? b.duration_seconds };
+    const patch = {
+      content: s.content, content_fetched_at: new Date().toISOString(), is_broken: false, duration_seconds: s.duration_seconds ?? b.duration_seconds,
+      // Si el marcador no tenía portada, aprovecha la nueva lectura
+      ...(!b.cover_url && s.cover_url ? { cover_url: s.cover_url } : {}),
+    };
     const { error } = await supabase.from('bookmarks').update(patch).eq('id', b.id);
     if (error) return toast(`No se pudo guardar la copia: ${error.message}`);
-    onUpdate({ content_fetched_at: patch.content_fetched_at, is_broken: false, duration_seconds: patch.duration_seconds });
+    const { content: _c, ...visible } = patch;
+    onUpdate(visible);
     setContent(s.content);
     toast('Copia actualizada');
   }

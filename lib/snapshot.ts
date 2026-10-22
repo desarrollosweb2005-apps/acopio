@@ -34,7 +34,12 @@ export async function takeSnapshot(rawUrl: string): Promise<Snapshot> {
     return await webPage(base);
   } catch (e) {
     // Si falla la lectura, el marcador se guarda igual con lo que haya
-    return { ...base, title: base.title || base.domain, error: e instanceof Error ? e.message : 'No se pudo leer la página' };
+    return {
+      ...base,
+      title: base.title || base.domain,
+      cover_url: base.source === 'web' ? screenshotUrl(url) : null,
+      error: e instanceof Error ? e.message : 'No se pudo leer la página',
+    };
   }
 }
 
@@ -193,10 +198,12 @@ async function webPage(s: Snapshot): Promise<Snapshot> {
   const title = decode(meta('og:title') ?? html.match(/<title[^>]*>([^<]*)<\/title>/i)?.[1] ?? '').trim();
   const body = html.match(/<article[\s\S]*?<\/article>/i)?.[0] ?? html.match(/<main[\s\S]*?<\/main>/i)?.[0] ?? html;
   const text = htmlToText(
-    body.replace(/<(script|style|noscript|svg|nav|footer|header|form|aside)[\s\S]*?<\/\1>/gi, ' '),
+    body.replace(/<(head|script|style|noscript|svg|nav|footer|header|form|aside)[\s\S]*?<\/\1>/gi, ' '),
   ).slice(0, MAX_CONTENT);
   const words = text.split(/\s+/).length;
-  let cover = meta('og:image') ?? null;
+  let cover =
+    meta('og:image') ?? meta('og:image:url') ?? meta('og:image:secure_url') ?? meta('twitter:image') ?? meta('twitter:image:src') ??
+    html.match(/<link[^>]+rel=["']image_src["'][^>]*href=["']([^"']+)["']/i)?.[1] ?? null;
   if (cover) {
     try {
       cover = new URL(decode(cover), s.url).toString();
@@ -204,15 +211,23 @@ async function webPage(s: Snapshot): Promise<Snapshot> {
       cover = null;
     }
   }
+  const description = decode(meta('og:description') ?? meta('description') ?? '').trim();
   return {
     ...s,
     title: title || s.domain,
-    excerpt: decode(meta('og:description') ?? meta('description') ?? '').trim() || truncate(text, 200),
-    cover_url: cover,
-    content: text || null,
+    excerpt: description || truncate(text, 200),
+    // Sin imagen propia: captura de pantalla de la página
+    cover_url: cover ?? screenshotUrl(s.url),
+    // Webs hechas con JavaScript traen poco texto en el HTML: se completa con la descripción
+    content: (text.length < 300 && description && !text.includes(description) ? `${description}\n\n${text}`.trim() : text) || null,
     // Tiempo de lectura aproximado (200 palabras por minuto)
     duration_seconds: words > 150 ? Math.round((words / 200) * 60) : null,
   };
+}
+
+/** Captura de pantalla gratuita (servicio mShots de WordPress). La primera vez tarda unos segundos en generarse. */
+export function screenshotUrl(url: string) {
+  return `https://s0.wp.com/mshots/v1/${encodeURIComponent(url)}?w=1200&h=750`;
 }
 
 function htmlToText(html: string) {
