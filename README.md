@@ -28,7 +28,7 @@ Biblioteca personal de links, prompts y highlights. Hecha con Next.js + Supabase
 1. En [vercel.com](https://vercel.com), **Add New → Project** e importa este repositorio.
 2. En **Environment Variables** añade:
    - `NEXT_PUBLIC_SUPABASE_URL` → la Project URL
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY` → la clave anon public
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` → la clave publishable (o `NEXT_PUBLIC_SUPABASE_ANON_KEY` con la clave anon, en proyectos antiguos)
    - `ALLOWED_EMAIL` → tu email (solo esa cuenta puede entrar)
 3. **Deploy**. Abre la URL que te da Vercel y entra con tu email y contraseña.
 
