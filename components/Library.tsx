@@ -12,6 +12,8 @@ import { AddDialog } from './AddDialog';
 import { CollectionDialog } from './CollectionDialog';
 import { OrganizeDialog } from './OrganizeDialog';
 import { AskPanel } from './AskPanel';
+import { BrokenPanel, DupesPanel, TagsPanel, duplicateGroups } from './Maintenance';
+import { similarTagGroups } from '@/lib/tags';
 import { extractUrl } from '@/lib/url';
 
 type Layout = 'cards' | 'list' | 'compact';
@@ -215,6 +217,9 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
   }, [adding, editingCol, organizing, toast]);
 
   /* ---------- Vista ---------- */
+  const dupes = useMemo(() => duplicateGroups(bookmarks), [bookmarks]);
+  const similarTags = useMemo(() => similarTagGroups(tagCounts), [tagCounts]);
+  const special = view === 'ask' || view.startsWith('m:');
   const [title, sub] = viewTitle(view, colById, colPath);
   const queueTotal = view === 'queue' ? list.reduce((a, b) => a + (b.duration_seconds ?? 0), 0) : 0;
   const curCol = view.startsWith('col:') ? view.slice(4) : null;
@@ -272,6 +277,12 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
             </div>
           </div>
         )}
+        <div className="grp">
+          <div className="grp-head"><h4>Mantenimiento</h4></div>
+          <Nav v="m:dupes" ic="⧉" label="Duplicados" n={dupes.length} cls={dupes.length ? 'alert' : ''} />
+          <Nav v="m:tags" ic="≈" label="Etiquetas parecidas" n={similarTags.length} cls={similarTags.length ? 'alert' : ''} />
+          <Nav v="m:broken" ic="⚠" label="Links rotos" n={bookmarks.filter((b) => b.is_broken).length} cls={bookmarks.some((b) => b.is_broken) ? 'alert' : ''} />
+        </div>
         <div className="side-foot">
           <a className="nav" href="/herramientas"><span className="ic">⇪</span><span className="lb">Guardar desde navegador y móvil</span></a>
           <a className="nav" href="/importar"><span className="ic">⤓</span><span className="lb">Importar de Raindrop</span></a>
@@ -295,11 +306,11 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
             <div>
               <h1>{title}</h1>
               <div className="sub">
-                {view !== 'ask' && <>{plural(list.length, 'marcador', 'marcadores')}{queueTotal ? ` · ${formatDuration(queueTotal)} en total` : ''} · </>}{sub}
+                {!special && <>{plural(list.length, 'marcador', 'marcadores')}{queueTotal ? ` · ${formatDuration(queueTotal)} en total` : ''} · </>}{sub}
                 {curCol && <> · <button className="link-btn" onClick={() => setEditingCol({ id: curCol })}>Editar colección</button></>}
               </div>
             </div>
-            {view !== 'ask' && <div className="tools">
+            {!special && <div className="tools">
               {view === 'queue' && (
                 <div className="seg" role="group" aria-label="Tiempo disponible">
                   {[[0, 'Todo'], [15, '≤ 15 min'], [30, '≤ 30 min'], [60, '≤ 1 h']].map(([m, l]) => (
@@ -338,6 +349,12 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
 
           {view === 'ask' ? (
             <AskPanel bookmarks={bookmarks} aiEnabled={aiEnabled} onOpen={(id) => setSelId(id)} />
+          ) : view === 'm:dupes' ? (
+            <DupesPanel bookmarks={bookmarks} setBookmarks={setBookmarks} supabase={supabase} toast={toast} colPath={colPath} onOpen={(id) => setSelId(id)} />
+          ) : view === 'm:tags' ? (
+            <TagsPanel bookmarks={bookmarks} setBookmarks={setBookmarks} supabase={supabase} toast={toast} tagCounts={tagCounts} aiEnabled={aiEnabled} />
+          ) : view === 'm:broken' ? (
+            <BrokenPanel bookmarks={bookmarks} setBookmarks={setBookmarks} supabase={supabase} toast={toast} onOpen={(id) => setSelId(id)} />
           ) : list.length ? (
             <div className={`items ${layout}`}>
               {list.map((b) => (
@@ -472,6 +489,9 @@ function viewTitle(v: string, colById: Map<string, Collection>, colPath: (id: st
     queue: ['Cola pendiente', 'Lo que guardaste y aún no has visto'],
     prompts: ['Prompts', 'Tu librería de prompts reutilizables'],
     ask: ['Preguntar a tu biblioteca', 'Responde con IA citando tus marcadores'],
+    'm:dupes': ['Duplicados', 'El mismo link guardado más de una vez'],
+    'm:tags': ['Etiquetas parecidas', 'Unifica etiquetas que significan lo mismo'],
+    'm:broken': ['Links rotos', 'Páginas, vídeos o posts que ya no existen'],
     'f:notes': ['Con notas', 'Marcadores en los que escribiste algo'],
     'f:hl': ['Highlights', 'Marcadores con fragmentos guardados'],
     'f:video': ['Vídeos', 'YouTube'],

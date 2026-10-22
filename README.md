@@ -80,7 +80,14 @@ En `extension/` (empaquetada en `public/acopio-extension.zip` con `npm run exten
 - Clic derecho en un link: lo guarda sin abrirlo.
 - Clic derecho en texto seleccionado: lo guarda como highlight (si la página ya estaba guardada, se añade a ese marcador).
 
+## Mantenimiento (fase 5)
+
+En la barra lateral, sección **Mantenimiento**:
+
+- **Duplicados**: el mismo link guardado varias veces (también con distintos parámetros). Fusionar conserva el más completo y le suma etiquetas, notas y highlights.
+- **Etiquetas parecidas**: une etiquetas equivalentes (`ai`/`ia`, `music`/`musica`, plurales…). Con IA busca más casos. También se puede renombrar cualquier etiqueta.
+- **Links rotos**: comprueba todos los links; marca como roto solo lo seguro (404, dominio inexistente, vídeo o post borrado).
+
 ## Próximas fases
 
 4. Capturas y archivos: pegar o subir imágenes y recortarlas, subir PDFs; recorte de zonas de la web desde la extensión.
-5. Mantenimiento: duplicados, etiquetas parecidas y links rotos.
