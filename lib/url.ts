@@ -11,6 +11,12 @@ export function normalizeUrl(raw: string): string {
     if (host === 'youtube.com' && u.pathname.startsWith('/shorts/')) {
       return `youtube.com/watch?v=${u.pathname.split('/')[2]}`;
     }
+    // Vídeo: solo cuenta el ID (fuera lista de reproducción, minuto, radio…)
+    if (host === 'youtube.com' && u.pathname === '/watch' && u.searchParams.get('v')) {
+      return `youtube.com/watch?v=${u.searchParams.get('v')}`;
+    }
+    // Canal: /@canal, /@canal/videos y /@canal/featured son el mismo
+    if (host === 'youtube.com' && u.pathname.startsWith('/@')) return `youtube.com/${u.pathname.split('/')[1]}`;
     const twitterHost = host === 'twitter.com' ? 'x.com' : host;
     [...u.searchParams.keys()].forEach((k) => TRACKING.test(k) && u.searchParams.delete(k));
     const search = u.searchParams.toString();
