@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+.env
+.env*.local
+.vercel
+public/pdf.worker.min.mjs
+extension
+*.md
+!deploy/*.md

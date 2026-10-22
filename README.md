@@ -43,6 +43,10 @@ A veces YouTube no deja leer la página del vídeo desde los servidores de Verce
 3. **APIs y servicios → Credenciales → Crear credenciales → Clave de API**.
 4. En Vercel, añade la variable `YOUTUBE_API_KEY` con esa clave y vuelve a desplegar.
 
+### En tu propio servidor (Docker)
+
+Ver [deploy/SERVIDOR.md](deploy/SERVIDOR.md): `docker compose up -d --build` con HTTPS automático.
+
 ### 3. En local (opcional)
 
 ```bash

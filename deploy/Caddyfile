@@ -1,0 +1,8 @@
+{$ACOPIO_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy acopio:3000
+	# Subidas de capturas y PDFs (hasta 50 MB)
+	request_body {
+		max_size 60MB
+	}
+}
