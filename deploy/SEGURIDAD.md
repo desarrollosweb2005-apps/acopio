@@ -1,5 +1,13 @@
 # Proteger el VPS (Ubuntu) antes de instalar nada
 
+> **Atajo:** el script [preparar-servidor.sh](preparar-servidor.sh) hace los pasos 1 a 4 (y la swap, la zona horaria e instala Coolify) con comprobaciones para que no te quedes fuera:
+>
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/desarrollosweb2005-apps/acopio/main/deploy/preparar-servidor.sh | sudo bash
+> ```
+>
+> Lo de abajo explica cada paso por si prefieres hacerlo a mano o quieres entender qué cambia.
+
 La mayoría de los VPS que «entran» a los pocos meses caen por lo mismo: **acceso SSH con contraseña** (robots probando contraseñas día y noche), **un panel expuesto o sin actualizar**, o **servicios abiertos a internet que no deberían estarlo**. Estos pasos cierran esas puertas. Hazlos **el primer día**, en este orden.
 
 > Ten a mano la **consola web de tu proveedor** (la «Console» o «VNC» del panel del VPS). Si algo sale mal con SSH, entras por ahí.
