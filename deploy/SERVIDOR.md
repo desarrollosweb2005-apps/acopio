@@ -1,4 +1,6 @@
-# Acopio en tu propio servidor
+# Acopio en tu propio servidor (Docker Compose)
+
+> ¿Usas **Coolify**? Sigue mejor [COOLIFY.md](COOLIFY.md). Y antes de nada: [SEGURIDAD.md](SEGURIDAD.md).
 
 Acopio corre en Docker en tu servidor; los datos (usuarios, links, colecciones) siguen en **Supabase en la nube** y los archivos irán al **Nextcloud** de cada usuario.
 

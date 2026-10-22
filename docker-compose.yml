@@ -1,11 +1,7 @@
 # Acopio + Caddy (HTTPS automático). Configuración en el archivo .env (ver .env.example)
 services:
   acopio:
-    build:
-      context: .
-      args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}
+    build: .
     env_file: .env
     restart: unless-stopped
     # Solo accesible desde el propio servidor; hacia fuera sale por Caddy

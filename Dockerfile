@@ -8,12 +8,8 @@ FROM node:22-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Las variables NEXT_PUBLIC_ se incrustan al compilar
-ARG NEXT_PUBLIC_SUPABASE_URL
-ARG NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
-    NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY \
-    NEXT_TELEMETRY_DISABLED=1
+# No hace falta ninguna clave para compilar: Supabase, Groq, etc. se leen al arrancar el contenedor
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run postinstall && npm run build
 
 FROM node:22-alpine AS run
