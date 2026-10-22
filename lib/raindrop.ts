@@ -11,6 +11,8 @@ export interface RaindropRow {
 // Portada genérica que Raindrop pone a casi todos los posts de X: mejor sin portada
 const GENERIC_COVERS = [/abs\.twimg\.com\/rweb\/ssr\/default/];
 
+export const isGenericCover = (cover: string | null | undefined) => !!cover && GENERIC_COVERS.some((re) => re.test(cover));
+
 export function splitTags(s?: string) {
   return (s ?? '').split(',').map(cleanTag).filter(Boolean);
 }
@@ -64,7 +66,7 @@ export function rowToBookmark(r: RaindropRow, opts: { status: Status; collection
     // El extracto de Raindrop sirve de copia inicial del contenido (en posts de X suele ser el texto entero)
     content: excerpt || null,
     content_fetched_at: excerpt ? created ?? new Date().toISOString() : null,
-    cover_url: cover && !GENERIC_COVERS.some((re) => re.test(cover)) ? cover : null,
+    cover_url: cover && !isGenericCover(cover) ? cover : null,
     tags: [...new Set(tags)],
     collection_id: opts.collection_id,
     meta: { imported_from: 'raindrop' },

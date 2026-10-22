@@ -1,4 +1,5 @@
 import { Importer } from './Importer';
+import { RepairImported } from './Repair';
 
 export const metadata = { title: 'Importar de Raindrop · Acopio' };
 
@@ -15,6 +16,7 @@ export default function ImportPage() {
           </ol>
           <p className="mono">Las carpetas pasan a ser colecciones, y se conservan etiquetas, notas, highlights y fechas. Los links que ya tengas en Acopio se saltan.</p>
         </section>
+        <RepairImported />
         <Importer />
       </div>
     </main>
