@@ -3,21 +3,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { STATUS_LABEL, type Collection, type Snapshot, type Status } from '@/lib/types';
-import { cleanTag, fmtDate } from '@/lib/format';
+import { fmtDate } from '@/lib/format';
 import { snapshotToRow } from '@/lib/rows';
 import { domainOf, normalizeUrl, sourceOf } from '@/lib/url';
 import { CollectionOptions } from '@/components/CollectionOptions';
+import { TagInput } from '@/components/TagInput';
 
 interface Existing { id: string; title: string; created_at: string; collection_id: string | null }
 
-export function QuickSave({ url, titleHint, sharedText, collections, existing }: {
-  url: string | null; titleHint: string; sharedText: string; collections: Collection[]; existing: Existing | null;
+export function QuickSave({ url, titleHint, sharedText, collections, allTags, existing }: {
+  url: string | null; titleHint: string; sharedText: string; collections: Collection[]; allTags: [string, number][]; existing: Existing | null;
 }) {
   const supabase = useMemo(() => createClient(), []);
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [title, setTitle] = useState(titleHint);
   const [collectionId, setCollectionId] = useState('');
-  const [tags, setTags] = useState('');
+  const [tags, setTags] = useState<string[]>([]);
   const [note, setNote] = useState(sharedText);
   const [status, setStatus] = useState<Status>('pending');
   const [state, setState] = useState<'reading' | 'ready' | 'saving' | 'saved' | 'error'>('reading');
@@ -44,7 +45,7 @@ export function QuickSave({ url, titleHint, sharedText, collections, existing }:
     if (!url) return;
     setState('saving');
     const s: Snapshot = snap ?? { url, url_norm: normalizeUrl(url), domain: domainOf(url), source: sourceOf(url), title, excerpt: '', cover_url: null, content: null, duration_seconds: null, meta: {} };
-    const row = snapshotToRow(s, { title, collection_id: collectionId || null, tags: tags.split(/[,\s]+/).map(cleanTag).filter(Boolean), status, note });
+    const row = snapshotToRow(s, { title, collection_id: collectionId || null, tags, status, note });
     const { error } = await supabase.from('bookmarks').insert(row);
     if (error) { setError(error.message); setState('error'); return; }
     setState('saved');
@@ -99,9 +100,9 @@ export function QuickSave({ url, titleHint, sharedText, collections, existing }:
             {(['pending', 'seen', 'applied'] as Status[]).map((s) => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
           </select>
         </label>
-        <label className="field full"><span>Etiquetas</span>
-          <input id="qs-tags" placeholder="claude, reels…" value={tags} onChange={(e) => setTags(e.target.value)} />
-        </label>
+        <div className="field full"><span>Etiquetas</span>
+          <TagInput id="qs-tags" value={tags} onChange={setTags} allTags={allTags} />
+        </div>
         <label className="field full"><span>Nota</span>
           <textarea id="qs-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Por qué lo guardas" />
         </label>

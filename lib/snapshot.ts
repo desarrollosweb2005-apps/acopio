@@ -56,9 +56,9 @@ function isPublicHttpUrl(raw: string) {
   }
 }
 
-async function get(url: string, accept = 'text/html,application/json') {
+async function get(url: string, accept = 'text/html,application/json', headers: Record<string, string> = {}) {
   const res = await fetch(url, {
-    headers: { 'user-agent': UA, accept, 'accept-language': 'es,en;q=0.8' },
+    headers: { 'user-agent': UA, accept, 'accept-language': 'es,en;q=0.8', ...headers },
     redirect: 'follow',
     signal: AbortSignal.timeout(9000),
     cache: 'no-store',
@@ -66,6 +66,12 @@ async function get(url: string, accept = 'text/html,application/json') {
   if (!res.ok) throw new Error(`La página respondió ${res.status}`);
   return res;
 }
+
+// YouTube sirve una página de consentimiento a los servidores (Vercel) si no lleva estas cookies
+const YT_HEADERS = {
+  'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36',
+  cookie: 'CONSENT=YES+cb.20240101-00-p0.es+FX+000; SOCS=CAI',
+};
 
 async function youtube(s: Snapshot): Promise<Snapshot> {
   const o = await (await get(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(s.url)}`)).json();
@@ -75,22 +81,60 @@ async function youtube(s: Snapshot): Promise<Snapshot> {
     cover_url: o.thumbnail_url ?? null,
     meta: { author: o.author_name, author_url: o.author_url },
   };
-  // Duración y descripción vienen en el HTML del vídeo; si YouTube no las da, seguimos sin ellas
-  try {
-    const html = await (await get(s.url)).text();
-    const len = html.match(/"lengthSeconds":"(\d+)"/);
-    if (len) out.duration_seconds = Number(len[1]);
-    const desc = html.match(/"shortDescription":"((?:[^"\\]|\\.)*)"/);
-    if (desc) {
-      const text = JSON.parse(`"${desc[1]}"`) as string;
-      out.content = text.slice(0, MAX_CONTENT);
-      out.excerpt = firstLine(text);
+  const id = youtubeId(s.url);
+  const details = (id && (await youtubeApi(id))) || (await youtubePage(s.url));
+  if (details) {
+    out.duration_seconds = details.seconds ?? null;
+    if (details.description) {
+      out.content = details.description.slice(0, MAX_CONTENT);
+      out.excerpt = firstLine(details.description);
     }
-  } catch {
-    /* sin duración */
   }
   if (!out.excerpt && o.author_name) out.excerpt = `Canal: ${o.author_name}`;
   return out;
+}
+
+function youtubeId(raw: string) {
+  try {
+    const u = new URL(raw);
+    if (u.hostname === 'youtu.be') return u.pathname.slice(1) || null;
+    if (u.pathname.startsWith('/shorts/') || u.pathname.startsWith('/live/')) return u.pathname.split('/')[2] || null;
+    return u.searchParams.get('v');
+  } catch {
+    return null;
+  }
+}
+
+/** API oficial de YouTube: solo si hay YOUTUBE_API_KEY (gratis en Google Cloud). Es la vía más fiable. */
+async function youtubeApi(id: string) {
+  const key = process.env.YOUTUBE_API_KEY;
+  if (!key) return null;
+  try {
+    const r = await (await get(`https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails&id=${id}&key=${key}`, 'application/json')).json();
+    const v = r.items?.[0];
+    if (!v) return null;
+    const [, h, m, sec] = String(v.contentDetails?.duration ?? '').match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/) ?? [];
+    const seconds = (Number(h) || 0) * 3600 + (Number(m) || 0) * 60 + (Number(sec) || 0);
+    return { seconds: seconds || null, description: (v.snippet?.description as string) || null };
+  } catch {
+    return null;
+  }
+}
+
+/** Sin clave: lee la duración y la descripción del HTML del vídeo. */
+async function youtubePage(url: string) {
+  try {
+    const html = await (await get(url, 'text/html', YT_HEADERS)).text();
+    const len = html.match(/"lengthSeconds":"(\d+)"/);
+    const desc = html.match(/"shortDescription":"((?:[^"\\]|\\.)*)"/);
+    if (!len && !desc) return null;
+    return {
+      seconds: len ? Number(len[1]) : null,
+      description: desc ? (JSON.parse(`"${desc[1]}"`) as string) : null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function xPost(s: Snapshot): Promise<Snapshot> {

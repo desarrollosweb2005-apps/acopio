@@ -311,6 +311,7 @@ export function Library({ initialCollections, initialBookmarks }: { initialColle
             key={selected.id}
             b={selected}
             collections={collections}
+            allTags={tagCounts}
             colPath={colPath}
             supabase={supabase}
             toast={toast}
@@ -328,6 +329,7 @@ export function Library({ initialCollections, initialBookmarks }: { initialColle
           collections={collections}
           colPath={colPath}
           bookmarks={bookmarks}
+          allTags={tagCounts}
           defaultCollection={curCol}
           onClose={() => setAdding(null)}
           onOpenExisting={(id) => { setAdding(null); setSelId(id); }}

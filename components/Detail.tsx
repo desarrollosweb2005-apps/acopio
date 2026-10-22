@@ -3,17 +3,19 @@
 import { useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SOURCE_LABEL, STATUS_LABEL, type Bookmark, type Collection, type HlColor, type Highlight, type Snapshot, type Status } from '@/lib/types';
-import { cleanTag, fmtDate } from '@/lib/format';
+import { fmtDate } from '@/lib/format';
 import { fillPrompt, promptVariables } from '@/lib/prompt';
 import { formatDuration } from '@/lib/url';
 import { Thumb } from './Thumb';
 import { CollectionOptions } from './CollectionOptions';
+import { TagInput } from './TagInput';
 
 const COLORS: [HlColor, string][] = [['y', 'Amarillo'], ['g', 'Verde'], ['b', 'Azul'], ['p', 'Rosa']];
 
-export function Detail({ b, collections, colPath, supabase, toast, onClose, onUpdate, onDelete, onAddHighlight, onRemoveHighlight }: {
+export function Detail({ b, collections, allTags, colPath, supabase, toast, onClose, onUpdate, onDelete, onAddHighlight, onRemoveHighlight }: {
   b: Bookmark;
   collections: Collection[];
+  allTags: [string, number][];
   colPath: (id: string | null) => string;
   supabase: SupabaseClient;
   toast: (m: string) => void;
@@ -25,7 +27,6 @@ export function Detail({ b, collections, colPath, supabase, toast, onClose, onUp
 }) {
   const [title, setTitle] = useState(b.title);
   const [note, setNote] = useState(b.note);
-  const [tagInput, setTagInput] = useState('');
   const [confirmDel, setConfirmDel] = useState(false);
   const [hl, setHl] = useState({ text: '', note: '', color: 'y' as HlColor, time: '' });
   const [content, setContent] = useState<string | null | undefined>(undefined);
@@ -36,12 +37,6 @@ export function Detail({ b, collections, colPath, supabase, toast, onClose, onUp
   const isPrompt = b.kind === 'prompt';
   const variables = promptVariables(prompt);
   const meta = b.meta ?? {};
-
-  function addTag() {
-    const t = cleanTag(tagInput);
-    if (t && !b.tags.includes(t)) onUpdate({ tags: [...b.tags, t] });
-    setTagInput('');
-  }
 
   async function showCopy() {
     setLoadingCopy(true);
@@ -135,15 +130,7 @@ export function Detail({ b, collections, colPath, supabase, toast, onClose, onUp
 
       <div className="field">
         <span>Etiquetas</span>
-        <div className="tags-edit">
-          {b.tags.map((t) => (
-            <span key={t} className="chip">#{t}<button onClick={() => onUpdate({ tags: b.tags.filter((x) => x !== t) })} aria-label={`Quitar ${t}`}>×</button></span>
-          ))}
-          <input id="d-tag" placeholder="añadir y pulsar Enter" aria-label="Añadir etiqueta" value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTag(); } }}
-            onBlur={addTag} />
-        </div>
+        <TagInput id="d-tag" value={b.tags} onChange={(tags) => onUpdate({ tags })} allTags={allTags} />
       </div>
 
       {isPrompt && (

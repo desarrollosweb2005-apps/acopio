@@ -30,7 +30,17 @@ Biblioteca personal de links, prompts y highlights. Hecha con Next.js + Supabase
    - `NEXT_PUBLIC_SUPABASE_URL` → la Project URL
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` → la clave publishable (o `NEXT_PUBLIC_SUPABASE_ANON_KEY` con la clave anon, en proyectos antiguos)
    - `ALLOWED_EMAIL` → tu email (solo esa cuenta puede entrar)
+   - `YOUTUBE_API_KEY` → opcional; si los vídeos se guardan sin duración ni descripción, ver «Clave de YouTube» abajo
 3. **Deploy**. Abre la URL que te da Vercel y entra con tu email y contraseña.
+
+### Clave de YouTube (opcional)
+
+A veces YouTube no deja leer la página del vídeo desde los servidores de Vercel, y el vídeo se guarda sin duración ni descripción. Con una clave gratuita de la API de YouTube funciona siempre:
+
+1. Entra en [console.cloud.google.com](https://console.cloud.google.com) y crea un proyecto.
+2. **APIs y servicios → Biblioteca** → busca **YouTube Data API v3** → **Habilitar**.
+3. **APIs y servicios → Credenciales → Crear credenciales → Clave de API**.
+4. En Vercel, añade la variable `YOUTUBE_API_KEY` con esa clave y vuelve a desplegar.
 
 ### 3. En local (opcional)
 

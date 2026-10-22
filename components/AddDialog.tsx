@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Bookmark, Collection, Snapshot, Status } from '@/lib/types';
 import { STATUS_LABEL } from '@/lib/types';
-import { cleanTag, fmtDate } from '@/lib/format';
+import { fmtDate } from '@/lib/format';
 import { normalizeUrl } from '@/lib/url';
 import { snapshotToRow } from '@/lib/rows';
 import { CollectionOptions } from './CollectionOptions';
+import { TagInput } from './TagInput';
 
-export function AddDialog({ mode: initialMode, collections, colPath, bookmarks, defaultCollection, onClose, onOpenExisting, onInsert }: {
+export function AddDialog({ mode: initialMode, collections, colPath, bookmarks, allTags, defaultCollection, onClose, onOpenExisting, onInsert }: {
   mode: 'link' | 'prompt';
+  allTags: [string, number][];
   collections: Collection[];
   colPath: (id: string | null) => string;
   bookmarks: Bookmark[];
@@ -23,7 +25,7 @@ export function AddDialog({ mode: initialMode, collections, colPath, bookmarks, 
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [title, setTitle] = useState('');
   const [collectionId, setCollectionId] = useState(defaultCollection ?? '');
-  const [tags, setTags] = useState('');
+  const [tagList, setTagList] = useState<string[]>([]);
   const [status, setStatus] = useState<Status>('pending');
   const [prompt, setPrompt] = useState('');
   const [busy, setBusy] = useState(false);
@@ -38,7 +40,6 @@ export function AddDialog({ mode: initialMode, collections, colPath, bookmarks, 
   }, [onClose]);
 
   const dupe = url.trim() ? bookmarks.find((b) => b.url_norm && b.url_norm === normalizeUrl(url)) : undefined;
-  const tagList = tags.split(/[,\s]+/).map(cleanTag).filter(Boolean);
 
   async function analyze() {
     setBusy(true);
@@ -133,9 +134,9 @@ export function AddDialog({ mode: initialMode, collections, colPath, bookmarks, 
                 <CollectionOptions collections={collections} colPath={colPath} />
               </select>
             </label>
-            <label className="field"><span>Etiquetas</span>
-              <input id="add-tags" placeholder="claude, reels…" value={tags} onChange={(e) => setTags(e.target.value)} />
-            </label>
+            <div className="field"><span>Etiquetas</span>
+              <TagInput id="add-tags" value={tagList} onChange={setTagList} allTags={allTags} />
+            </div>
             {mode === 'link' && (
               <label className="field"><span>Estado</span>
                 <select id="add-status" value={status} onChange={(e) => setStatus(e.target.value as Status)}>
