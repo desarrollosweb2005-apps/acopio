@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>Acopio · Opciones</title>
+  <style>
+    body { font: 14px/1.5 system-ui, sans-serif; margin: 24px; max-width: 520px; color: #1a1e1c; background: #fbfcfa; }
+    h1 { font-size: 20px; margin: 0 0 12px; }
+    label { display: block; font-weight: 600; margin-bottom: 4px; }
+    input { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #d3d8d2; border-radius: 8px; font: inherit; }
+    button { margin-top: 12px; background: #0d6b63; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 600; cursor: pointer; }
+    p { color: #5b635e; }
+    #ok { color: #2f7a3b; margin-left: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Acopio</h1>
+  <label for="base">Dirección de tu Acopio</label>
+  <input id="base" type="url" placeholder="https://acopio-murex.vercel.app">
+  <p>Usa la dirección fija de tu app, no la de un despliegue concreto.</p>
+  <button id="save">Guardar</button><span id="ok" hidden>Guardado</span>
+  <script src="options.js"></script>
+</body>
+</html>

@@ -72,8 +72,15 @@ npm run dev                  # http://localhost:3000
 
 También se puede **arrastrar un link** a la ventana o **pegarlo con Ctrl+V** en cualquier parte para guardarlo.
 
+## Extensión para Brave y Chrome (fase 3)
+
+En `extension/` (empaquetada en `public/acopio-extension.zip` con `npm run extension`). Se instala como extensión descomprimida; instrucciones en `/herramientas`.
+
+- Clic en el icono o `Alt+Shift+S`: guarda la página actual.
+- Clic derecho en un link: lo guarda sin abrirlo.
+- Clic derecho en texto seleccionado: lo guarda como highlight (si la página ya estaba guardada, se añade a ese marcador).
+
 ## Próximas fases
 
-3. Capturas: pegar o subir imágenes, recortarlas y guardarlas en una galería.
-4. Extensión de Chrome: recorte de zonas de la web y «Guardar texto» con clic derecho.
+4. Capturas y archivos: pegar o subir imágenes y recortarlas, subir PDFs; recorte de zonas de la web desde la extensión.
 5. Mantenimiento: duplicados, etiquetas parecidas y links rotos.

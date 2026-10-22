@@ -72,4 +72,5 @@ writeFileSync('public/icons/icon-512.png', icon(512));
 writeFileSync('public/icons/icon-maskable-512.png', icon(512, { maskable: true }));
 writeFileSync('public/icons/apple-touch-icon.png', icon(180, { maskable: true }));
 writeFileSync('app/icon.png', icon(64));
+for (const n of [16, 32, 48, 128]) writeFileSync(`extension/icons/icon${n}.png`, icon(n));
 console.log('Iconos generados');

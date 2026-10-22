@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "tsc --noEmit",
-    "icons": "node scripts/make-icons.mjs"
+    "icons": "node scripts/make-icons.mjs",
+    "extension": "python3 scripts/pack-extension.py"
   },
   "dependencies": {
     "@supabase/ssr": "0.6.1",

@@ -7,8 +7,9 @@ export const metadata = { title: 'Guardar en Acopio' };
 export const dynamic = 'force-dynamic';
 
 /**
- * Destino del bookmarklet (?url=&title=) y del menú Compartir del móvil
- * (Android manda a veces la URL dentro de `text`).
+ * Destino de la extensión, del bookmarklet (?url=&title=) y del menú Compartir del móvil
+ * (Android manda a veces la URL dentro de `text`). Con ?highlight= guarda además ese texto;
+ * con ?popup=1 avisa a la extensión para que cierre la ventana al terminar.
  */
 export default async function SavePage({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
   const p = await searchParams;
@@ -28,7 +29,8 @@ export default async function SavePage({ searchParams }: { searchParams: Promise
     <main className="page">
       <div className="page-inner">
         <span className="logo"><i aria-hidden="true" />Acopio</span>
-        <QuickSave url={url} titleHint={p.title ?? ''} sharedText={sharedText} collections={(collections ?? []) as Collection[]} allTags={allTags} existing={existing} />
+        <QuickSave url={url} titleHint={p.title ?? ''} sharedText={sharedText} highlight={p.highlight ?? ''} popup={p.popup === '1'}
+          aiEnabled={!!process.env.GROQ_API_KEY} collections={(collections ?? []) as Collection[]} allTags={allTags} existing={existing} />
       </div>
     </main>
   );

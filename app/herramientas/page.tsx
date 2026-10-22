@@ -10,7 +10,26 @@ export default function ToolsPage() {
         <h1>Guardar desde cualquier sitio</h1>
 
         <section className="card">
-          <h2>En el ordenador: botón «+ Acopio»</h2>
+          <h2>En el ordenador: extensión para Brave y Chrome</h2>
+          <p>La forma más cómoda. Con ella puedes:</p>
+          <ul style={{ margin: 0, paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <li><b>Clic en el icono</b> o <code>Alt</code>+<code>Shift</code>+<code>S</code>: guarda la página que estás viendo.</li>
+            <li><b>Clic derecho sobre cualquier link</b> → «Guardar link en Acopio», sin abrirlo. Útil en la portada de YouTube o en X.</li>
+            <li><b>Selecciona texto</b> → clic derecho → «Guardar texto seleccionado»: se guarda como highlight de esa página.</li>
+          </ul>
+          <a className="primary" href="/acopio-extension.zip" download style={{ alignSelf: 'flex-start' }}>Descargar la extensión</a>
+          <ol>
+            <li>Descomprime el archivo: queda una carpeta <code>acopio-extension</code>. Guárdala en un sitio fijo (por ejemplo en Documentos), porque el navegador la usa desde ahí.</li>
+            <li>Abre <code>brave://extensions</code> (en Chrome, <code>chrome://extensions</code>).</li>
+            <li>Activa el <b>Modo de desarrollador</b>, arriba a la derecha.</li>
+            <li>Pulsa <b>Cargar descomprimida</b> y elige la carpeta <code>acopio-extension</code>.</li>
+            <li>Fija el icono: pieza de puzle 🧩 de la barra → chincheta junto a <b>Acopio</b>.</li>
+          </ol>
+          <p className="mono">La extensión usa tu sesión del navegador: si ya entraste en Acopio, no pide nada más. Viene configurada para acopio-murex.vercel.app; si usas otra dirección, cámbiala en sus Opciones.</p>
+        </section>
+
+        <section className="card">
+          <h2>Sin extensión: botón «+ Acopio»</h2>
           <ol>
             <li>Muestra la barra de favoritos de Chrome con <code>Ctrl</code>+<code>Shift</code>+<code>B</code>.</li>
             <li>Arrastra este botón hasta la barra:</li>

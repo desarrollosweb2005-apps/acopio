@@ -2,7 +2,7 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 import { SUPABASE_KEY, SUPABASE_URL } from '@/lib/supabase/env';
 
-const PUBLIC = ['/login', '/manifest.webmanifest', '/sw.js', '/icons'];
+const PUBLIC = ['/login', '/manifest.webmanifest', '/sw.js', '/icons', '/acopio-extension.zip'];
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({ request });
