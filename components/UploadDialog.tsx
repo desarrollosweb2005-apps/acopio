@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Collection } from '@/lib/types';
 import { fmtSize, isImage, loadImage, pdfText, sourceForType, uploadToStorage } from '@/lib/files';
+import { pdfFirstPage, removeStored, uploadCover } from '@/lib/cover';
 import { domainOf } from '@/lib/url';
 import { CollectionOptions } from './CollectionOptions';
 import { TagInput } from './TagInput';
@@ -122,6 +123,7 @@ export function UploadDialog({ input, supabase, collections, colPath, allTags, d
     try {
       let meta;
       let content = '';
+      let cover: string | null = null;
       if (image) {
         setBusy('Recortando…');
         const { blob, width, height } = await cropToBlob();
@@ -130,19 +132,25 @@ export function UploadDialog({ input, supabase, collections, colPath, allTags, d
         meta = await uploadToStorage(supabase, blob, name, { width, height });
       } else {
         const file = input.file!;
-        if (file.type === 'application/pdf') { setBusy('Leyendo el PDF…'); content = await pdfText(file); }
+        if (file.type === 'application/pdf') {
+          setBusy('Leyendo el PDF…');
+          content = await pdfText(file);
+          // La primera página sirve de portada en la lista; si falla, se guarda sin ella
+          const page = await pdfFirstPage(file);
+          if (page) cover = await uploadCover(supabase, page).catch(() => null);
+        }
         setBusy('Subiendo…');
         meta = await uploadToStorage(supabase, file, file.name);
       }
       setBusy('Guardando…');
       const url = sourceUrl.trim();
-      const removeUpload = () => supabase.storage.from('files').remove([meta.path]);
+      const removeUpload = () => removeStored(supabase, [meta.path, cover]);
       const ok = await onInsert({
         kind: 'file', source: sourceForType(meta.type), status: 'seen',
         title: title.trim() || meta.name, note: note.trim(), tags, collection_id: collectionId || null,
         url: url || null, url_norm: null, domain: url ? domainOf(url) : null,
         excerpt: content ? content.slice(0, 280) : '', content: content || null,
-        content_fetched_at: content ? new Date().toISOString() : null, meta: { file: meta },
+        content_fetched_at: content ? new Date().toISOString() : null, meta: cover ? { file: meta, cover } : { file: meta },
       }).catch(async (err) => { await removeUpload(); throw err; });
       if (!ok) {
         // La fila no se pudo crear: no dejar el archivo huérfano

@@ -1,6 +1,6 @@
 import 'server-only';
 import type { Snapshot } from './types';
-import { domainOf, normalizeUrl, sourceOf } from './url';
+import { domainOf, normalizeUrl, screenshotUrl, sourceOf } from './url';
 
 const UA = 'Mozilla/5.0 (compatible; AcopioBot/1.0; +https://github.com/desarrollosweb2005-apps/acopio)';
 const MAX_CONTENT = 30_000;
@@ -79,6 +79,7 @@ const YT_HEADERS = {
 };
 
 async function youtube(s: Snapshot): Promise<Snapshot> {
+  if (!youtubeId(s.url) && youtubeChannelRef(s.url)) return youtubeChannel(s);
   const o = await (await get(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(s.url)}`)).json();
   const out: Snapshot = {
     ...s,
@@ -108,6 +109,65 @@ function youtubeId(raw: string) {
   } catch {
     return null;
   }
+}
+
+/** Canal: /@nombre, /channel/UC…, /c/nombre o /user/nombre (con o sin /videos, /featured…). */
+function youtubeChannelRef(raw: string): { handle?: string; id?: string; user?: string } | null {
+  try {
+    const [first, second] = new URL(raw).pathname.split('/').filter(Boolean);
+    if (first?.startsWith('@')) return { handle: decodeURIComponent(first) };
+    if (first === 'channel' && second) return { id: second };
+    if ((first === 'c' || first === 'user') && second) return { user: second };
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function youtubeChannel(s: Snapshot): Promise<Snapshot> {
+  const ref = youtubeChannelRef(s.url)!;
+  const key = process.env.YOUTUBE_API_KEY;
+  if (key && !ref.user) {
+    try {
+      const q = ref.handle ? `forHandle=${encodeURIComponent(ref.handle)}` : `id=${ref.id}`;
+      const r = await (await get(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics,brandingSettings&${q}&key=${key}`, 'application/json')).json();
+      const c = r.items?.[0];
+      if (c) {
+        const sn = c.snippet ?? {};
+        const avatar: string | null = sn.thumbnails?.high?.url ?? sn.thumbnails?.medium?.url ?? sn.thumbnails?.default?.url ?? null;
+        // El banner es ancho (encaja mejor en las tarjetas); si no hay, la foto del canal
+        const banner: string | null = c.brandingSettings?.image?.bannerExternalUrl ? `${c.brandingSettings.image.bannerExternalUrl}=w1280` : null;
+        const description = String(sn.description ?? '');
+        return {
+          ...s,
+          title: sn.title ? `${sn.title} · canal de YouTube` : s.domain,
+          excerpt: firstLine(description) || `Canal de YouTube${sn.customUrl ? ` ${sn.customUrl}` : ''}`,
+          cover_url: banner ?? avatar,
+          content: description ? description.slice(0, MAX_CONTENT) : null,
+          meta: {
+            channel: true, avatar, banner, author: sn.title, author_url: s.url,
+            subscribers: Number(c.statistics?.subscriberCount) || null, videos: Number(c.statistics?.videoCount) || null,
+          },
+        };
+      }
+    } catch {
+      /* se intenta con la página */
+    }
+  }
+  // Sin clave: título, descripción y foto del canal desde la página
+  const html = (await (await get(s.url, 'text/html', YT_HEADERS)).text()).slice(0, 2_000_000);
+  const og = (name: string) => decode(html.match(new RegExp(`<meta[^>]+property=["']og:${name}["'][^>]*content=["']([^"']*)["']`, 'i'))?.[1] ?? '').trim();
+  const name = og('title');
+  const description = og('description');
+  const avatar = og('image') || null;
+  return {
+    ...s,
+    title: name ? `${name} · canal de YouTube` : s.domain,
+    excerpt: firstLine(description) || 'Canal de YouTube',
+    cover_url: avatar,
+    content: description || null,
+    meta: { channel: true, avatar, author: name, author_url: s.url },
+  };
 }
 
 /** API oficial de YouTube: solo si hay YOUTUBE_API_KEY (gratis en Google Cloud). Es la vía más fiable. */
@@ -223,11 +283,6 @@ async function webPage(s: Snapshot): Promise<Snapshot> {
     // Tiempo de lectura aproximado (200 palabras por minuto)
     duration_seconds: words > 150 ? Math.round((words / 200) * 60) : null,
   };
-}
-
-/** Captura de pantalla gratuita (servicio mShots de WordPress). La primera vez tarda unos segundos en generarse. */
-export function screenshotUrl(url: string) {
-  return `https://s0.wp.com/mshots/v1/${encodeURIComponent(url)}?w=1200&h=750`;
 }
 
 function htmlToText(html: string) {

@@ -10,6 +10,7 @@ import { Thumb } from './Thumb';
 import { BUCKET, fmtSize, isImage } from '@/lib/files';
 import { CollectionOptions } from './CollectionOptions';
 import { TagInput } from './TagInput';
+import { CoverPicker } from './CoverPicker';
 
 const COLORS: [HlColor, string][] = [['y', 'Amarillo'], ['g', 'Verde'], ['b', 'Azul'], ['p', 'Rosa']];
 
@@ -26,7 +27,7 @@ export function Detail({ b, image, collections, allTags, aiEnabled, onPatched, c
   onAddHighlight: (h: Pick<Highlight, 'text' | 'note' | 'color' | 'time_label'>) => void;
   onRemoveHighlight: (id: string) => void;
   aiEnabled: boolean;
-  /** Enlace firmado de la imagen, en capturas e imágenes subidas */
+  /** Enlace firmado de la imagen: portada propia, o la captura en imágenes subidas */
   image?: string;
   /** Cambios ya guardados en el servidor (por la IA): solo actualizan la vista */
   onPatched: (patch: Partial<Bookmark>) => void;
@@ -132,7 +133,7 @@ export function Detail({ b, image, collections, allTags, aiEnabled, onPatched, c
       </div>
       {isFile && file ? (
         <>
-          {isImage(file.type) && (image || fileUrl)
+          {(isImage(file.type) && (image || fileUrl)) || image
             // eslint-disable-next-line @next/next/no-img-element
             ? <img className="detail-img" src={image ?? fileUrl!} alt={b.title} />
             : <div className={`shot-doc t-${b.source}`} style={{ borderRadius: 10 }}><span>{file.name.split('.').pop()?.toUpperCase()}</span></div>}
@@ -141,7 +142,7 @@ export function Detail({ b, image, collections, allTags, aiEnabled, onPatched, c
             {fileUrl && <a className="ghost" href={fileUrl} target="_blank" rel="noopener noreferrer" style={{ marginLeft: 'auto' }}>Abrir</a>}
           </div>
         </>
-      ) : !isPrompt && <Thumb b={b} />}
+      ) : !isPrompt && <Thumb b={b} image={image} />}
       <textarea className="d-title" id="d-title" rows={2} value={title} aria-label="Título" style={{ fieldSizing: 'content' } as React.CSSProperties}
         onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== b.title && onUpdate({ title: title.trim() })} />
       {b.url && <a className="d-url" href={b.url} target="_blank" rel="noopener noreferrer">{b.url}</a>}
@@ -204,6 +205,8 @@ export function Detail({ b, image, collections, allTags, aiEnabled, onPatched, c
           <button className="primary" onClick={copyPrompt} style={{ alignSelf: 'flex-start' }}>Copiar prompt</button>
         </section>
       )}
+
+      {!isPrompt && !(file && isImage(file.type)) && <CoverPicker b={b} fileUrl={fileUrl} supabase={supabase} toast={toast} onUpdate={onUpdate} />}
 
       <label className="field">
         <span>Nota</span>

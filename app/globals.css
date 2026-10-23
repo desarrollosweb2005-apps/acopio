@@ -307,3 +307,13 @@ button.tag:hover { text-decoration: underline; }
 .dhead .dn { margin-left: auto; font-family: var(--f-mono); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 .dhead:hover b { color: var(--accent); }
 .dgroup:has(> .dhead[aria-expanded="false"]) .dhead { margin-bottom: 0; }
+
+/* Portada */
+.cover-pick .row .ghost { font-size: 12.5px; padding: 5px 9px; }
+.paste-in { width: 100%; border: 1.5px dashed var(--line); background: var(--bg); border-radius: 8px; padding: 9px 10px; }
+.paste-in:focus { border-color: var(--accent); outline: none; }
+.cands { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.cands button { border: 1px solid var(--line); border-radius: 8px; padding: 0; overflow: hidden; background: var(--bg); aspect-ratio: 16 / 10; }
+.cands button:hover { outline: 2px solid var(--accent); }
+.cands img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb.t-pdf img { object-position: top; }

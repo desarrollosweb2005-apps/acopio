@@ -16,7 +16,8 @@ import { BrokenPanel, DupesPanel, TagsPanel, duplicateGroups } from './Maintenan
 import { similarTagGroups } from '@/lib/tags';
 import { UploadDialog, type UploadInput } from './UploadDialog';
 import { FilesGallery } from './FilesGallery';
-import { BUCKET, isImage } from '@/lib/files';
+import { BUCKET } from '@/lib/files';
+import { coverPath, imagePath, removeStored } from '@/lib/cover';
 import { fileMeta } from '@/lib/types';
 import { extractUrl } from '@/lib/url';
 import { DateGroups, FilterBar, NO_FILTERS, TagLink, hasFilters, typeOf, type ColOption, type FilterState } from './Filters';
@@ -62,7 +63,7 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
 
   const requested = useRef(new Set<string>());
   useEffect(() => {
-    const missing = bookmarks.map(fileMeta).filter((f) => f && isImage(f.type) && !requested.current.has(f.path)).map((f) => f!.path);
+    const missing = [...new Set(bookmarks.map(imagePath).filter((p): p is string => !!p && !requested.current.has(p)))];
     if (!missing.length) return;
     missing.forEach((p) => requested.current.add(p));
     supabase.storage.from(BUCKET).createSignedUrls(missing, 60 * 60 * 12).then(({ data }) => {
@@ -176,10 +177,10 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
     }
   }
   async function deleteBookmark(id: string) {
-    const file = fileMeta(bookmarks.find((b) => b.id === id) ?? {});
+    const gone = bookmarks.find((b) => b.id === id) ?? {};
     const { error } = await supabase.from('bookmarks').delete().eq('id', id);
     if (error) return toast(`No se pudo eliminar: ${error.message}`);
-    if (file) await supabase.storage.from(BUCKET).remove([file.path]);
+    await removeStored(supabase, [fileMeta(gone)?.path, coverPath(gone)]);
     setBookmarks((bs) => bs.filter((b) => b.id !== id));
     setSelId(null);
     toast('Marcador eliminado');
@@ -451,7 +452,7 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
             <DateGroups key={group} items={list} mode={group} dir={groupDir} render={(items) => (
               <div className={`items ${layout}`}>
                 {items.map((b) => (
-                  <Item key={b.id} b={b} image={fileUrls[fileMeta(b)?.path ?? '']} layout={layout} selected={b.id === selId} colLabel={`${colIcon(b.collection_id)} ${colPath(b.collection_id)}`}
+                  <Item key={b.id} b={b} image={fileUrls[imagePath(b) ?? '']} layout={layout} selected={b.id === selId} colLabel={`${colIcon(b.collection_id)} ${colPath(b.collection_id)}`}
                     onOpen={() => setSelId(b.id)} onStatus={() => updateBookmark(b.id, { status: NEXT_STATUS[b.status] })} onTag={addTagFilter} />
                 ))}
               </div>
@@ -472,7 +473,7 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
             collections={collections}
             allTags={tagCounts}
             aiEnabled={aiEnabled}
-            image={fileUrls[fileMeta(selected)?.path ?? '']}
+            image={fileUrls[imagePath(selected) ?? '']}
             onPatched={(patch) => setBookmarks((bs) => bs.map((x) => (x.id === selected.id ? { ...x, ...patch } : x)))}
             colPath={colPath}
             supabase={supabase}

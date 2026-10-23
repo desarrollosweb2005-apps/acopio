@@ -58,3 +58,8 @@ export function formatDuration(seconds: number | null): string {
   const m = Math.round((seconds % 3600) / 60);
   return h ? `${h} h ${m} min` : `${m} min`;
 }
+
+/** Captura de pantalla gratuita (servicio mShots de WordPress). La primera vez tarda unos segundos en generarse. */
+export function screenshotUrl(url: string) {
+  return `https://s0.wp.com/mshots/v1/${encodeURIComponent(url)}?w=1200&h=750`;
+}

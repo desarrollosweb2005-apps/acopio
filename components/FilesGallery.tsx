@@ -6,6 +6,7 @@ import { fmtDate } from '@/lib/format';
 import { fmtSize, isImage } from '@/lib/files';
 import type { GroupMode } from '@/lib/dates';
 import { DateGroups, TagLink } from './Filters';
+import { imagePath } from '@/lib/cover';
 
 /** Galería de capturas, imágenes y documentos subidos. */
 export function FilesGallery({ items, group, groupDir, filtered, fileUrls, colPath, onOpen, onUpload, onTag }: {
@@ -38,10 +39,14 @@ export function FilesGallery({ items, group, groupDir, filtered, fileUrls, colPa
         <div className="gallery">
           {shown.map((b) => {
             const f = fileMeta(b);
-            const url = f ? fileUrls[f.path] : undefined;
+            const url = fileUrls[imagePath(b) ?? ''];
+            const cover = f && !isImage(f.type) && url;
             return (
               <article key={b.id} className="shot" tabIndex={0} onClick={() => onOpen(b.id)} onKeyDown={(e) => e.key === 'Enter' && onOpen(b.id)}>
-                {f && isImage(f.type)
+                {cover
+                  // eslint-disable-next-line @next/next/no-img-element
+                  ? <img src={url} alt={b.title} loading="lazy" />
+                  : f && isImage(f.type)
                   // eslint-disable-next-line @next/next/no-img-element
                   ? (url ? <img src={url} alt={b.title} loading="lazy" style={{ aspectRatio: f.width && f.height ? `${f.width} / ${f.height}` : undefined }} /> : <div className="shot-ph" style={{ aspectRatio: f.width && f.height ? `${f.width} / ${f.height}` : '16 / 10' }} />)
                   : <div className={`shot-doc t-${b.source}`}><span>{(f?.name.split('.').pop() ?? 'archivo').toUpperCase()}</span></div>}
