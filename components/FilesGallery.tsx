@@ -1,25 +1,25 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import { fileMeta, type Bookmark } from '@/lib/types';
 import { fmtDate } from '@/lib/format';
 import { fmtSize, isImage } from '@/lib/files';
+import type { GroupMode } from '@/lib/dates';
+import { DateGroups, TagLink } from './Filters';
 
 /** Galería de capturas, imágenes y documentos subidos. */
-export function FilesGallery({ items, fileUrls, colPath, onOpen, onUpload }: {
+export function FilesGallery({ items, group, groupDir, filtered, fileUrls, colPath, onOpen, onUpload, onTag }: {
   items: Bookmark[];
+  group: GroupMode;
+  groupDir: 'asc' | 'desc';
+  filtered: boolean;
+  onTag: (t: string) => void;
   fileUrls: Record<string, string>;
   colPath: (id: string | null) => string;
   onOpen: (id: string) => void;
   onUpload: (file: File) => void;
 }) {
-  const [filter, setFilter] = useState<'all' | 'img' | 'doc'>('all');
   const input = useRef<HTMLInputElement>(null);
-  const shown = items.filter((b) => {
-    const f = fileMeta(b);
-    if (!f || filter === 'all') return true;
-    return filter === 'img' ? isImage(f.type) : !isImage(f.type);
-  });
 
   return (
     <>
@@ -29,16 +29,12 @@ export function FilesGallery({ items, fileUrls, colPath, onOpen, onUpload }: {
           Las imágenes se recortan antes de guardar. Desde la extensión: clic derecho → «Capturar zona de la página».
         </span>
         <span className="acts">
-          <div className="seg" role="group" aria-label="Tipo">
-            {([['all', 'Todo'], ['img', 'Imágenes'], ['doc', 'Documentos']] as const).map(([k, l]) => (
-              <button key={k} className={filter === k ? 'on' : ''} aria-pressed={filter === k} onClick={() => setFilter(k)}>{l}</button>
-            ))}
-          </div>
           <button className="primary" onClick={() => input.current?.click()}>Subir archivo</button>
           <input ref={input} type="file" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); e.target.value = ''; }} />
         </span>
       </div>
-      {shown.length ? (
+      {items.length ? (
+        <DateGroups key={group} items={items} mode={group} dir={groupDir} render={(shown) => (
         <div className="gallery">
           {shown.map((b) => {
             const f = fileMeta(b);
@@ -53,15 +49,16 @@ export function FilesGallery({ items, fileUrls, colPath, onOpen, onUpload }: {
                   <span className="kind">{f ? `${isImage(f.type) ? 'Imagen' : f.type === 'application/pdf' ? 'PDF' : 'Archivo'} · ${f.width ? `${f.width}×${f.height} · ` : ''}${fmtSize(f.size)}` : 'Archivo'}</span>
                   <h3 className="ttl">{b.title}</h3>
                   {b.note && <p className="note">{b.note}</p>}
-                  {b.tags.length > 0 && <div className="tags">{b.tags.map((t) => <span key={t} className="tag">#{t}</span>)}</div>}
+                  {b.tags.length > 0 && <div className="tags">{b.tags.map((t) => <TagLink key={t} t={t} onTag={onTag} />)}</div>}
                   <div className="meta"><span>{colPath(b.collection_id)}</span>{b.domain && <span>{b.domain}</span>}<span suppressHydrationWarning>{fmtDate(b.created_at)}</span></div>
                 </div>
               </article>
             );
           })}
         </div>
+        )} />
       ) : (
-        <div className="empty">{items.length ? 'Nada de este tipo todavía.' : 'Todavía no hay capturas ni archivos. Pega una imagen con Ctrl+V para empezar.'}</div>
+        <div className="empty">{filtered ? 'Nada coincide con la búsqueda o los filtros.' : 'Todavía no hay capturas ni archivos. Pega una imagen con Ctrl+V para empezar.'}</div>
       )}
     </>
   );

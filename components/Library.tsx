@@ -19,11 +19,14 @@ import { FilesGallery } from './FilesGallery';
 import { BUCKET, isImage } from '@/lib/files';
 import { fileMeta } from '@/lib/types';
 import { extractUrl } from '@/lib/url';
+import { DateGroups, FilterBar, NO_FILTERS, TagLink, hasFilters, typeOf, type ColOption, type FilterState } from './Filters';
+import type { GroupMode } from '@/lib/dates';
 
 type Layout = 'cards' | 'list' | 'compact';
 type Sort = 'new' | 'old' | 'title' | 'short';
 const NEXT_STATUS: Record<Status, Status> = { pending: 'seen', seen: 'applied', applied: 'pending' };
 const LAYOUT_KEY = 'acopio-layouts';
+const GROUP_KEY = 'acopio-group';
 
 export function Library({ initialCollections, initialBookmarks, aiEnabled }: { initialCollections: Collection[]; initialBookmarks: Bookmark[]; aiEnabled: boolean }) {
   const supabase = useMemo(() => createClient(), []);
@@ -33,6 +36,8 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<Sort>('new');
   const [minutes, setMinutes] = useState(0);
+  const [filters, setFilters] = useState<FilterState>(NO_FILTERS);
+  const [group, setGroup] = useState<GroupMode>('none');
   const [selId, setSelId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [adding, setAdding] = useState<null | 'link' | 'prompt'>(null);
@@ -50,6 +55,8 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
     try {
       const saved = localStorage.getItem(LAYOUT_KEY);
       if (saved) setLayouts(JSON.parse(saved));
+      const g = localStorage.getItem(GROUP_KEY);
+      if (g === 'week' || g === 'month') setGroup(g);
     } catch {}
   }, []);
 
@@ -78,7 +85,7 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
   }, [colById]);
   const colIcon = (id: string | null) => (id && colById.get(id)?.icon) || '📥';
   const childIds = useCallback((id: string) => [id, ...collections.filter((c) => c.parent_id === id).map((c) => c.id)], [collections]);
-  const roots = collections.filter((c) => !c.parent_id || !colById.has(c.parent_id));
+  const roots = useMemo(() => collections.filter((c) => !c.parent_id || !colById.has(c.parent_id)), [collections, colById]);
 
   const tagCounts = useMemo(() => {
     const m = new Map<string, number>();
@@ -105,18 +112,54 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
 
   const count = (v: string) => bookmarks.filter((b) => inView(b, v)).length;
 
-  const list = useMemo(() => {
+  // Sección + búsqueda; los filtros se aplican encima
+  const base = useMemo(() => {
     let l = bookmarks.filter((b) => inView(b, view));
     if (view === 'queue' && minutes) l = l.filter((b) => b.duration_seconds && b.duration_seconds <= minutes * 60);
     const words = fold(q).split(/\s+/).filter(Boolean);
     if (words.length) l = l.filter((b) => { const h = fold(bookmarkHaystack(b, colPath(b.collection_id))); return words.every((w) => h.includes(w)); });
-    const s = view === 'queue' && sort === 'new' ? 'old' : sort;
-    return [...l].sort((a, b) =>
+    return l;
+  }, [bookmarks, view, q, minutes, inView, colPath]);
+
+  const passes = useCallback((b: Bookmark, skip?: keyof FilterState) =>
+    (skip === 'type' || !filters.type || typeOf(b) === filters.type)
+    && (skip === 'col' || !filters.col || (filters.col === 'inbox' ? !b.collection_id : inView(b, `col:${filters.col}`)))
+    && (skip === 'status' || !filters.status || (b.kind === 'link' && b.status === filters.status))
+    && (skip === 'tags' || filters.tags.every((t) => b.tags.includes(t))), [filters, inView]);
+
+  // Cuántos quedarían con cada opción, teniendo en cuenta los demás filtros
+  const facets = useMemo(() => {
+    const tally = (skip: keyof FilterState, keys: (b: Bookmark) => string[]) => {
+      const m = new Map<string, number>();
+      base.forEach((b) => { if (passes(b, skip)) keys(b).forEach((k) => m.set(k, (m.get(k) ?? 0) + 1)); });
+      return m;
+    };
+    const types = tally('type', (b) => [typeOf(b)]);
+    const statuses = tally('status', (b) => (b.kind === 'link' ? [b.status] : []));
+    const tags = [...tally('tags', (b) => b.tags)].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const byCol = tally('col', (b) => {
+      if (!b.collection_id) return ['inbox'];
+      const c = colById.get(b.collection_id);
+      return c?.parent_id && colById.has(c.parent_id) ? [c.id, c.parent_id] : [b.collection_id];
+    });
+    const cols: ColOption[] = [{ value: 'inbox', label: '📥 Bandeja', n: byCol.get('inbox') ?? 0 }];
+    roots.forEach((c) => {
+      cols.push({ value: c.id, label: `${c.icon} ${c.name}`, n: byCol.get(c.id) ?? 0 });
+      collections.filter((k) => k.parent_id === c.id).forEach((k) => cols.push({ value: k.id, label: `\u00a0\u00a0\u00a0${k.icon} ${k.name}`, n: byCol.get(k.id) ?? 0 }));
+    });
+    return { types, statuses, tags, cols };
+  }, [base, passes, colById, roots, collections]);
+
+  const effSort: Sort = view === 'queue' && sort === 'new' ? 'old' : sort;
+  const list = useMemo(() => {
+    const s = effSort;
+    return base.filter((b) => passes(b)).sort((a, b) =>
       s === 'title' ? a.title.localeCompare(b.title)
       : s === 'old' ? a.created_at.localeCompare(b.created_at)
       : s === 'short' ? (a.duration_seconds ?? 1e9) - (b.duration_seconds ?? 1e9)
       : b.created_at.localeCompare(a.created_at));
-  }, [bookmarks, view, q, sort, minutes, inView, colPath]);
+  }, [base, passes, effSort]);
+  const groupDir = effSort === 'old' ? 'asc' : 'desc';
 
   const selected = bookmarks.find((b) => b.id === selId) ?? null;
   const layout: Layout = layouts[view] ?? 'list';
@@ -185,8 +228,18 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
 
   function go(v: string) {
     setView(v);
+    setFilters(NO_FILTERS);
     setSelId(null);
     setMenuOpen(false);
+    window.scrollTo(0, 0);
+  }
+  function chooseGroup(g: GroupMode) {
+    setGroup(g);
+    try { localStorage.setItem(GROUP_KEY, g); } catch {}
+  }
+  function addTagFilter(t: string) {
+    if (view === `tag:${t}` || filters.tags.includes(t)) return;
+    setFilters((f) => ({ ...f, tags: [...f.tags, t] }));
     window.scrollTo(0, 0);
   }
   function setLayout(l: Layout) {
@@ -244,6 +297,7 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
   const dupes = useMemo(() => duplicateGroups(bookmarks), [bookmarks]);
   const similarTags = useMemo(() => similarTagGroups(tagCounts), [tagCounts]);
   const special = view === 'ask' || view === 'files' || view.startsWith('m:');
+  const listed = !special || view === 'files';
   const [title, sub] = viewTitle(view, colById, colPath);
   const queueTotal = view === 'queue' ? list.reduce((a, b) => a + (b.duration_seconds ?? 0), 0) : 0;
   const curCol = view.startsWith('col:') ? view.slice(4) : null;
@@ -331,11 +385,11 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
             <div>
               <h1>{title}</h1>
               <div className="sub">
-                {!special && <>{plural(list.length, 'marcador', 'marcadores')}{queueTotal ? ` · ${formatDuration(queueTotal)} en total` : ''} · </>}{sub}
+                {listed && <>{plural(list.length, 'marcador', 'marcadores')}{queueTotal ? ` · ${formatDuration(queueTotal)} en total` : ''} · </>}{sub}
                 {curCol && <> · <button className="link-btn" onClick={() => setEditingCol({ id: curCol })}>Editar colección</button></>}
               </div>
             </div>
-            {!special && <div className="tools">
+            {listed && <div className="tools">
               {view === 'queue' && (
                 <div className="seg" role="group" aria-label="Tiempo disponible">
                   {[[0, 'Todo'], [15, '≤ 15 min'], [30, '≤ 30 min'], [60, '≤ 1 h']].map(([m, l]) => (
@@ -349,15 +403,25 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
                 <option value="title">Título A–Z</option>
                 <option value="short">Más cortos primero</option>
               </select>
-              <div className="seg" role="group" aria-label="Vista">
+              <select className="sm" aria-label="Agrupar" value={group} onChange={(e) => chooseGroup(e.target.value as GroupMode)}>
+                <option value="none">Sin agrupar</option>
+                <option value="week">Por semana</option>
+                <option value="month">Por mes</option>
+              </select>
+              {!special && <div className="seg" role="group" aria-label="Vista">
                 {(['cards', 'list', 'compact'] as Layout[]).map((k) => (
                   <button key={k} className={layout === k ? 'on' : ''} aria-pressed={layout === k} onClick={() => setLayout(k)}>
                     {k === 'cards' ? 'Cards' : k === 'list' ? 'Lista' : 'Compacta'}
                   </button>
                 ))}
-              </div>
+              </div>}
             </div>}
           </div>
+
+          {listed && (
+            <FilterBar value={filters} onChange={setFilters} typeCounts={facets.types} colOptions={facets.cols} statusCounts={facets.statuses}
+              tagCounts={facets.tags} hideCol={!!curCol} hideTag={view.startsWith('tag:') ? view.slice(4) : null} />
+          )}
 
           {view === 'inbox' && list.length > 0 && (
             <div className="banner">
@@ -375,8 +439,8 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
           {view === 'ask' ? (
             <AskPanel bookmarks={bookmarks} aiEnabled={aiEnabled} onOpen={(id) => setSelId(id)} />
           ) : view === 'files' ? (
-            <FilesGallery items={list} fileUrls={fileUrls} colPath={colPath} onOpen={(id) => setSelId(id)}
-              onUpload={(file) => setUploading({ file })} />
+            <FilesGallery items={list} group={group} groupDir={groupDir} filtered={list.length < count('files')} fileUrls={fileUrls} colPath={colPath}
+              onOpen={(id) => setSelId(id)} onUpload={(file) => setUploading({ file })} onTag={addTagFilter} />
           ) : view === 'm:dupes' ? (
             <DupesPanel bookmarks={bookmarks} setBookmarks={setBookmarks} supabase={supabase} toast={toast} colPath={colPath} onOpen={(id) => setSelId(id)} />
           ) : view === 'm:tags' ? (
@@ -384,14 +448,16 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
           ) : view === 'm:broken' ? (
             <BrokenPanel bookmarks={bookmarks} setBookmarks={setBookmarks} supabase={supabase} toast={toast} onOpen={(id) => setSelId(id)} />
           ) : list.length ? (
-            <div className={`items ${layout}`}>
-              {list.map((b) => (
-                <Item key={b.id} b={b} image={fileUrls[fileMeta(b)?.path ?? '']} layout={layout} selected={b.id === selId} colLabel={`${colIcon(b.collection_id)} ${colPath(b.collection_id)}`}
-                  onOpen={() => setSelId(b.id)} onStatus={() => updateBookmark(b.id, { status: NEXT_STATUS[b.status] })} />
-              ))}
-            </div>
+            <DateGroups key={group} items={list} mode={group} dir={groupDir} render={(items) => (
+              <div className={`items ${layout}`}>
+                {items.map((b) => (
+                  <Item key={b.id} b={b} image={fileUrls[fileMeta(b)?.path ?? '']} layout={layout} selected={b.id === selId} colLabel={`${colIcon(b.collection_id)} ${colPath(b.collection_id)}`}
+                    onOpen={() => setSelId(b.id)} onStatus={() => updateBookmark(b.id, { status: NEXT_STATUS[b.status] })} onTag={addTagFilter} />
+                ))}
+              </div>
+            )} />
           ) : (
-            <div className="empty">{emptyText(view, q, bookmarks.length)}</div>
+            <div className="empty">{emptyText(view, q || (hasFilters(filters) ? 'f' : ''), bookmarks.length)}</div>
           )}
         </div>
       </main>
@@ -488,8 +554,8 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
   );
 }
 
-function Item({ b, image, layout, selected, colLabel, onOpen, onStatus }: {
-  b: Bookmark; image?: string; layout: Layout; selected: boolean; colLabel: string; onOpen: () => void; onStatus: () => void;
+function Item({ b, image, layout, selected, colLabel, onOpen, onStatus, onTag }: {
+  b: Bookmark; image?: string; layout: Layout; selected: boolean; colLabel: string; onOpen: () => void; onStatus: () => void; onTag: (t: string) => void;
 }) {
   const open = (e: React.KeyboardEvent) => { if (e.key === 'Enter' && e.target === e.currentTarget) onOpen(); };
   const statusBtn = b.kind === 'link' && (
@@ -512,7 +578,7 @@ function Item({ b, image, layout, selected, colLabel, onOpen, onStatus }: {
       <div className="body">
         <h3 className="ttl">{b.title}</h3>
         {(b.note || b.excerpt) && <p className="note">{b.note || b.excerpt}</p>}
-        {b.tags.length > 0 && <div className="tags">{b.tags.map((t) => <span key={t} className="tag">#{t}</span>)}</div>}
+        {b.tags.length > 0 && <div className="tags">{b.tags.map((t) => <TagLink key={t} t={t} onTag={onTag} />)}</div>}
         {(b.highlights.length > 0 || b.is_broken) && (
           <div className="badges">
             {b.highlights.length > 0 && <span className="badge">{plural(b.highlights.length, 'highlight', 'highlights')}</span>}
@@ -559,7 +625,7 @@ function viewTitle(v: string, colById: Map<string, Collection>, colPath: (id: st
 }
 
 function emptyText(view: string, q: string, total: number) {
-  if (q) return 'Nada coincide con la búsqueda.';
+  if (q) return 'Nada coincide con la búsqueda o los filtros.';
   if (!total) return 'Todavía no hay nada guardado. Pulsa «+ Añadir» o importa tus marcadores de Raindrop.';
   if (view === 'inbox') return 'Bandeja vacía. Todo está en su colección.';
   if (view === 'queue') return 'No queda nada pendiente.';
