@@ -366,6 +366,7 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
         <div className="side-foot">
           <a className="nav" href="/herramientas"><span className="ic">⇪</span><span className="lb">Guardar desde navegador y móvil</span></a>
           <a className="nav" href="/importar"><span className="ic">⤓</span><span className="lb">Importar de Raindrop</span></a>
+          <a className="nav" href="/importar/excel"><span className="ic">⊞</span><span className="lb">Importar vídeos de Excel</span></a>
           <button className="nav" onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login'; }}><span className="ic">⎋</span><span className="lb">Salir</span></button>
         </div>
       </aside>

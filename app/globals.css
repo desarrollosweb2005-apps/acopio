@@ -318,3 +318,12 @@ button.tag:hover { text-decoration: underline; }
 .cands img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .thumb.t-pdf img { object-position: top; }
 .d-acts { display: flex; gap: 6px; flex: none; }
+
+/* Importar vídeos de Excel */
+.xl-cols { width: 100%; border-collapse: collapse; font-size: 13px; }
+.xl-cols th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; padding: 4px 6px; }
+.xl-cols td { border-top: 1px solid var(--line); padding: 5px 6px; vertical-align: top; }
+.xl-cols tr.off td { color: var(--muted); text-decoration: line-through; }
+.xl-cols tr.off td:first-child { text-decoration: none; }
+.xl-sample { color: var(--muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bad-txt { color: var(--bad); }

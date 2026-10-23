@@ -25,9 +25,20 @@ export function snapshotToRow(
   };
 }
 
+const MONTH_NAMES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+/** Mes en que se guardó, para buscar «012026», «01/2026», «2026-01», «enero 2026» o «ene 2026». */
+function dateWords(iso: string) {
+  const d = new Date(iso);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const y = d.getFullYear();
+  const name = MONTH_NAMES[d.getMonth()];
+  return `${mm}${y} ${mm}/${y} ${mm}-${y} ${y}-${mm} ${name} ${name.slice(0, 3)} ${y}`;
+}
+
 export function bookmarkHaystack(b: Bookmark, collectionName: string) {
   return [
-    b.title, b.note, b.excerpt, b.domain, b.prompt_text, b.tags.join(' '), collectionName,
+    dateWords(b.created_at), b.title, b.note, b.excerpt, b.domain, b.prompt_text, b.tags.join(' '), collectionName,
     ...(((b.meta ?? {}) as { summary?: string[] }).summary ?? []),
     ...b.highlights.map((h) => `${h.text} ${h.note}`),
   ].join(' ');
