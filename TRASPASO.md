@@ -1,0 +1,94 @@
+# Ficha de traspaso · Hilo 01 · 2026-10-23
+
+> Primer hilo del proyecto: desde la idea (reemplazar Raindrop.io) hasta las fases 1–5 en producción y la preparación para servidor propio.
+> **Ficha vigente.** Historial de fichas anteriores (no se borran): [`docs/traspasos/`](docs/traspasos/).
+
+## 1. Qué es Acopio
+
+Biblioteca personal de links, prompts, highlights, capturas y documentos, para reemplazar Raindrop.io. Interfaz en español. Hoy es de **un solo usuario** (el dueño del repositorio); la idea a futuro es ofrecerla a clientes (ver §8).
+
+- **App en producción**: `https://acopio-murex.vercel.app` (Vercel, plan Hobby). **Usar siempre esa dirección**: las de cada despliegue (`acopio-xxxx.vercel.app`) son fotos congeladas y causaron confusión.
+- **Repositorio**: `desarrollosweb2005-apps/acopio` (**público**; no contiene claves).
+- **Ramas**: se trabaja en `fase-1` y se publica haciendo push de `fase-1` a `main` (Vercel despliega `main`). Sin pull requests hasta ahora, por decisión del usuario.
+
+## 2. Arquitectura
+
+| Pieza | Detalle |
+|---|---|
+| Frontend + API | Next.js 15.5 (App Router), React 19, TypeScript, CSS propio (`app/globals.css`, sin Tailwind). `output: 'standalone'` |
+| Datos y login | Supabase (cloud). Login con email + contraseña; usuario creado a mano en Supabase y altas desactivadas. `ALLOWED_EMAIL` limita el acceso (middleware) |
+| Archivos | Supabase Storage, bucket privado `files`, carpeta por usuario `<uid>/…`; enlaces firmados para verlos |
+| IA | Groq (API compatible con OpenAI). Modelo por defecto `openai/gpt-oss-120b`; si Groq lo retira, `lib/ai.ts` elige otro disponible con `/models` |
+| Lectura de links | `lib/snapshot.ts`: YouTube (oEmbed + API de YouTube si hay `YOUTUBE_API_KEY`), X (publish.twitter.com/oembed), GitHub (API + README), webs (HTML, og:image o captura de mShots) |
+| PWA | `public/manifest.webmanifest` con `share_target` → `/save`; `public/sw.js` mínimo (sin caché) |
+| Extensión | `extension/` (Manifest V3, Brave/Chrome), empaquetada en `public/acopio-extension.zip` con `npm run extension` |
+
+### Base de datos (`supabase/migrations/`)
+
+- `0001_init.sql`: tablas `collections` (anidadas, un nivel en la interfaz), `bookmarks`, `highlights`; RLS por `user_id`.
+- `0002_files.sql`: `kind` admite `'file'`, `source` admite `image|pdf|file`, bucket `files` y políticas de Storage. **Pendiente de confirmar que el usuario lo ejecutó** (ver §7).
+
+Campos clave de `bookmarks`: `kind` (link|prompt|file), `status` (pending|seen|applied), `source` (video|x|repo|web|note|image|pdf|file), `url_norm` (para duplicados), `content` (copia del texto, no se carga en la lista), `prompt_text`, `meta` jsonb (portada/autor/estrellas de GitHub, `summary` de IA, `file` con datos del archivo, `checked_at`/`check_result` de links rotos, `imported_from`, `original_title`).
+
+### Variables de entorno
+
+| Variable | Dónde | Notas |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Vercel | También vale `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
+| `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` | Servidor propio | Se leen al arrancar; `app/layout.tsx` las pasa al navegador en `window.__ACOPIO_ENV` (por eso el layout es `force-dynamic`) |
+| `ALLOWED_EMAIL` | Ambos | Única cuenta permitida |
+| `GROQ_API_KEY` (+ opcional `GROQ_MODEL`) | Ambos | Configurada en Vercel y funcionando |
+| `YOUTUBE_API_KEY` | Ambos | Configurada; sin ella YouTube bloquea la lectura de duración/descripción desde Vercel |
+| `ACOPIO_DOMAIN` | docker compose | Dominio para Caddy |
+
+## 3. Funcionalidad hecha (todo publicado en `main`)
+
+**Fase 1 · Base**: colecciones anidadas con icono, etiquetas con autocompletado (`TagInput`, estilo Raindrop: sugiere existentes con su uso y ofrece «Nueva etiqueta»), notas, highlights (color, nota y minuto en vídeos), búsqueda, vistas Cards/Lista/Compacta por sección, estado Pendiente/Visto/Aplicado (clic en la pastilla lo cambia), **Cola pendiente** filtrada por duración, **Prompts** con variables `{{x}}` y botón Copiar, **copia del contenido** al guardar, guardado rápido `/save` (bookmarklet, menú Compartir de Android, Atajo de iOS), importador de CSV de Raindrop (`lib/raindrop.ts` limpia títulos «(2) … / X», usa el extracto como copia, quita portada genérica de X) y botón para limpiar lo ya importado.
+
+**Fase 2 · IA (Groq)**: «Organizar con IA» en la Bandeja (propone colecciones nuevas o existentes y etiquetas; el usuario revisa y aplica), sugerencia al añadir un link, «Resumir con IA» y «Convertir en prompt» en la ficha, «Preguntar» a la biblioteca (respuesta con citas). Además: **arrastrar un link** a la ventana o **pegarlo con Ctrl+V** abre «Añadir».
+
+**Fase 3 · Extensión** (v1.1): icono o `Alt+Shift+S` guarda la página; clic derecho en link lo guarda sin abrirlo; clic derecho en texto seleccionado lo guarda como highlight (si la página ya existía, se añade a ese marcador); `Alt+Shift+C` o clic derecho → «Capturar zona de la página». La ventanita se cierra sola (la página marca `#acopio-saved` / `#acopio-cancel` y la extensión la cierra). Se instala como extensión descomprimida desde `/herramientas`.
+
+**Fase 4 · Capturas y archivos**: pegar/arrastrar imágenes, PDFs y archivos; recorte con recuadro ajustable (`UploadDialog`); galería «Capturas y archivos»; los PDFs guardan su texto con pdf.js (worker copiado a `public/` en `postinstall`); `/capturar` recibe la captura de la extensión.
+
+**Fase 5 · Mantenimiento**: duplicados (fusiona conservando el más completo), etiquetas parecidas (reglas en `lib/tags.ts` + búsqueda con IA + renombrar), links rotos (`/api/check-links`, solo marca como roto lo seguro: 404/410, dominio inexistente, vídeo o post borrado).
+
+**Servidor propio (preparado, no desplegado)**: `Dockerfile` (compila sin claves), `docker-compose.yml` con Caddy, `deploy/SERVIDOR.md`, `deploy/COOLIFY.md` (incluye n8n, PostgreSQL, Redis y WhatsApp con Evolution API/WAHA), `deploy/SEGURIDAD.md` y `deploy/preparar-servidor.sh` (usuario con llave, SSH sin contraseñas, fail2ban, actualizaciones automáticas, ufw, swap e instalación de Coolify).
+
+## 4. Datos reales del usuario
+
+~50 marcadores importados de Raindrop (todos venían de «Unsorted») + algunos guardados a mano. Ya probó con éxito: etiquetas, importación, scroll, IA con Groq, extensión (los tres modos), clave de YouTube.
+
+## 5. Decisiones tomadas (no reabrir sin motivo)
+
+- Supabase **en la nube** aunque Acopio pase a servidor propio (el usuario lo prefiere: se mantiene solo).
+- Servidor futuro: VPS Ubuntu de 16 GB / 4 CPU / 200 GB con **Coolify** (no cPanel). Allí también irán n8n, PostgreSQL, Redis y un software de WhatsApp. Hoy usa DigitalOcean y migrará por precio.
+- Archivos: **Supabase Storage** para quien no tenga Nextcloud; **Nextcloud** (en servidores del usuario) como opción por usuario (pendiente, §6).
+- IA con **Groq** (no Anthropic) por coste.
+- Mientras no haya VPS, Acopio sigue en **Vercel**.
+- Usuario en Chile (empresa `rednetspa`); zona horaria por defecto `America/Santiago`.
+
+## 6. Pendiente / siguientes pasos
+
+1. **Probar fase 4 en real**: confirmar que se ejecutó `0002_files.sql`; probar pegar captura, subir PDF + «Resumir con IA», y «Capturar zona» con la extensión actualizada (hay que descargarla de nuevo y recargarla en `brave://extensions`).
+2. **Mejoras de la app** (el próximo hilo se abre para esto; el usuario aún no ha dicho cuáles).
+3. **Conexión con Nextcloud**: Login Flow v2 para conectar; archivos en `Acopio/` del Nextcloud del usuario; carpeta `Acopio/Bandeja` que se importa sola (ideal con la subida automática del móvil); opcional sincronizar con Nextcloud Bookmarks. Prueba prevista con un Nextcloud pequeño en un subdominio de `rednetspa`. Pedir versión y dirección cuando esté.
+4. **VPS**: el usuario lo hará más adelante con `preparar-servidor.sh` + `COOLIFY.md`.
+5. **Multiusuario para ofrecerlo a clientes** (más adelante): registro abierto, planes con límites (IA/YouTube/almacenamiento son por uso), exportar/borrar cuenta, extensión en Chrome Web Store, privacidad y términos, cobros. Vercel Hobby no permite uso comercial.
+
+## 7. Sin verificar / riesgos conocidos
+
+- Fase 4 y fase 5 probadas con datos y Supabase **simulados** en el navegador; falta la prueba con Supabase real.
+- Clic derecho «Capturar zona» real no se pudo automatizar (Chrome exige gesto del usuario); sí se probó la entrega de la captura a `/capturar`.
+- La imagen de Docker no se pudo construir en el entorno de trabajo (Docker Hub devolvió 429); se probó el servidor standalone equivalente.
+- `preparar-servidor.sh` solo se validó con `bash -n`, shellcheck y pruebas parciales; no en un Ubuntu real.
+- Convertir posts de X en prompts: Raindrop exporta el texto cortado; conviene «Actualizar copia» antes.
+
+## 8. Cómo trabajar en este repo
+
+- `npm run dev` / `npm run build`; para compilar sin claves basta con valores de ejemplo (`NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=x`).
+- **Probar la interfaz sin Supabase**: crear temporalmente `app/dev-preview/page.tsx` que renderice `<Library initialCollections=… initialBookmarks=… aiEnabled />` con datos de ejemplo, añadir `'/dev-preview'` a `PUBLIC` en `middleware.ts`, y usar Playwright (Chromium en `/opt/pw-browsers`) con `page.route()` para simular `/api/*` y `https://example.supabase.co/**`. **Borrar la página y revertir `middleware.ts` antes de commitear.**
+- Para una sesión simulada de Supabase en Playwright: cookie `sb-example-auth-token` = `base64-` + base64url(JSON de la sesión).
+- Al matar procesos de prueba, no usar `pkill -f` con un patrón que también aparezca en el propio comando (mata la shell).
+- Textos de la interfaz en español, tono directo; comentarios del código en español.
+- Commits en español, con las líneas de coautoría que indique el sistema.
