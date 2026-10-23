@@ -404,11 +404,6 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
                 <option value="title">Título A–Z</option>
                 <option value="short">Más cortos primero</option>
               </select>
-              <select className="sm" aria-label="Agrupar" value={group} onChange={(e) => chooseGroup(e.target.value as GroupMode)}>
-                <option value="none">Sin agrupar</option>
-                <option value="week">Por semana</option>
-                <option value="month">Por mes</option>
-              </select>
               {!special && <div className="seg" role="group" aria-label="Vista">
                 {(['cards', 'list', 'compact'] as Layout[]).map((k) => (
                   <button key={k} className={layout === k ? 'on' : ''} aria-pressed={layout === k} onClick={() => setLayout(k)}>
@@ -421,7 +416,13 @@ export function Library({ initialCollections, initialBookmarks, aiEnabled }: { i
 
           {listed && (
             <FilterBar value={filters} onChange={setFilters} typeCounts={facets.types} colOptions={facets.cols} statusCounts={facets.statuses}
-              tagCounts={facets.tags} hideCol={!!curCol} hideTag={view.startsWith('tag:') ? view.slice(4) : null} />
+              tagCounts={facets.tags} hideCol={!!curCol} hideTag={view.startsWith('tag:') ? view.slice(4) : null}>
+              <div className="seg" role="group" aria-label="Agrupar por fecha">
+                {([['none', 'Todo junto'], ['week', 'Por semana'], ['month', 'Por mes']] as [GroupMode, string][]).map(([k, l]) => (
+                  <button key={k} className={group === k ? 'on' : ''} aria-pressed={group === k} onClick={() => chooseGroup(k)}>{l}</button>
+                ))}
+              </div>
+            </FilterBar>
           )}
 
           {view === 'inbox' && list.length > 0 && (

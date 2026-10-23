@@ -317,3 +317,4 @@ button.tag:hover { text-decoration: underline; }
 .cands button:hover { outline: 2px solid var(--accent); }
 .cands img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .thumb.t-pdf img { object-position: top; }
+.d-acts { display: flex; gap: 6px; flex: none; }

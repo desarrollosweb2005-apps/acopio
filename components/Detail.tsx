@@ -129,8 +129,20 @@ export function Detail({ b, image, collections, allTags, aiEnabled, onPatched, c
     <aside className="detail" aria-label="Ficha del marcador">
       <div className="d-bar">
         <span className="mono">{isPrompt ? 'Prompt' : SOURCE_LABEL[b.source]} · guardado el {fmtDate(b.created_at)}</span>
-        <button className="icon-btn" onClick={onClose} aria-label="Cerrar ficha">✕</button>
+        <span className="d-acts">
+          <button className="icon-btn del" onClick={() => setConfirmDel(true)} aria-label={`Eliminar ${isPrompt ? 'prompt' : 'marcador'}`} title="Eliminar">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4M6.8 6.5v4.5M9.2 6.5v4.5" /></svg>
+          </button>
+          <button className="icon-btn" onClick={onClose} aria-label="Cerrar ficha">✕</button>
+        </span>
       </div>
+      {confirmDel && (
+        <div className="warn">
+          <span>¿Eliminar este {isPrompt ? 'prompt' : 'marcador'}? No se puede deshacer.</span>
+          <button className="ghost del solid" onClick={onDelete}>Eliminar</button>
+          <button className="ghost" onClick={() => setConfirmDel(false)}>Cancelar</button>
+        </div>
+      )}
       {isFile && file ? (
         <>
           {(isImage(file.type) && (image || fileUrl)) || image

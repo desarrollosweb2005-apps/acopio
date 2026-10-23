@@ -18,7 +18,7 @@ export const typeOf = (b: Bookmark) => (b.kind === 'prompt' ? 'prompt' : b.sourc
 
 export interface ColOption { value: string; label: string; n: number }
 
-export function FilterBar({ value, onChange, typeCounts, colOptions, statusCounts, tagCounts, hideCol, hideTag }: {
+export function FilterBar({ value, onChange, typeCounts, colOptions, statusCounts, tagCounts, hideCol, hideTag, children }: {
   value: FilterState;
   onChange: (f: FilterState) => void;
   typeCounts: Map<string, number>;
@@ -27,6 +27,8 @@ export function FilterBar({ value, onChange, typeCounts, colOptions, statusCount
   tagCounts: [string, number][];
   hideCol: boolean;
   hideTag: string | null;
+  /** Controles que van delante de los filtros (agrupar por fecha) */
+  children?: React.ReactNode;
 }) {
   const set = (patch: Partial<FilterState>) => onChange({ ...value, ...patch });
   const types = Object.keys(TYPE_LABEL).filter((t) => typeCounts.get(t) || value.type === t);
@@ -36,6 +38,7 @@ export function FilterBar({ value, onChange, typeCounts, colOptions, statusCount
 
   return (
     <div className="filters" role="group" aria-label="Filtros">
+      {children}
       {types.length > 1 && (
         <select className={`sm ${value.type ? 'on' : ''}`} aria-label="Tipo" value={value.type} onChange={(e) => set({ type: e.target.value })}>
           <option value="">Todos los tipos</option>
